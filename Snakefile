@@ -137,5 +137,5 @@ rule extract_embedding_rownames:
         "envs/seqkit.yml"
     shell:
         """
-        seqkit seq --only-id {input} --out-file {output.txt}
+        seqkit seq --name --only-id {input} --out-file {output.txt}
         """
