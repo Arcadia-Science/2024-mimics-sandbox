@@ -6,10 +6,11 @@ rule all:
 
 rule download_human_uniprot_proteome:
     output:
-        faa="inputs/uniprot/human/UP000005640_proteome.fasta.gz",
+        faa="inputs/uniprot/human/UP000005640_9606.fasta.gz",
     shell:
         """
-        curl -JLo {output.faa} https://rest.uniprot.org/uniprotkb/stream\?compressed\=true\&format\=fasta\&query\=%28%28proteome%3AUP000005640%29%29
+        curl -JLo {output.faa} https://ftp.uniprot.org/pub/databases/uniprot/current_release/knowledgebase/reference_proteomes/Eukaryota/UP000005640/UP000005640_9606.fasta.gz
+        # curl -JLo {output.faa} https://rest.uniprot.org/uniprotkb/stream\?compressed\=true\&format\=fasta\&query\=%28%28proteome%3AUP000005640%29%29
         """
 
 
@@ -108,7 +109,7 @@ rule plmutils_embed:
         "envs/plmutils.yml"
     shell:
         """
-        plmutils embed --model-name esm2_t6_8M_UR50D \
+        plmutils embed --model-name esm2_t48_15B_UR50D \
             --layer-ind -1 \
             --output-filepath {output.npy} \
             {input}
