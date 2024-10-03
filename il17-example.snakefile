@@ -98,7 +98,6 @@ rule plmutils_embed:
     """
     This rule embeds amino acid sequences into the embedding space of a protein language model.
     For now, plmutils only supports ESM-2.
-    We use the 8M model because it is fast. 
     The parameter --layer-ind -1 means to extract the embedding from the last layer of the model.
     """
     input:
@@ -109,7 +108,7 @@ rule plmutils_embed:
         "envs/plmutils.yml"
     shell:
         """
-        plmutils embed --model-name esm2_t48_15B_UR50D \
+        plmutils embed --model-name esm2_t48_3B_UR50D \
             --layer-ind -1 \
             --output-filepath {output.npy} \
             {input}
