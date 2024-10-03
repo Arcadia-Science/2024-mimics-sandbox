@@ -1,3 +1,7 @@
+from pathlib import Path
+
+OUTPUT_DIRPATH=Path("outputs/")
+
 rule all:
     input:
         "outputs/plmutils/embedded_proteins.csv",
@@ -56,33 +60,31 @@ rule download_proteincartography_scripts:
         """
 
 rule get_uniprot_ids_from_proteome:
-    output:
+    output: txt = OUTPUT_DIRPATH / "uniprot" / "proteomes" / "{proteome_id}.txt"
     conda: "envs/"
     shell:
         """
-        scripts/get_uniprot_ids_from_proteome.py
+        scripts/get_uniprot_ids_from_proteome.py --uniprot-proteome-id {wildcards.proteome_id} --output {output.txt}
         """
 
 # TER TODO
 # Any additional metadata fields to download from UniProt
 UNIPROT_ADDITIONAL_FIELDS = config["uniprot_additional_fields"]
-
 rule fetch_uniprot_metadata:
     """
     Query Uniprot for the aggregated hits and download all metadata as a big ol' TSV.
     """
     input:
-        rules.download_proteincartography_scripts.output.txt,
-        rules.get_uniprot_ids_from_proteome.output.txt,
+        py=rules.download_proteincartography_scripts.output.txt,
+        txt=rules.get_uniprot_ids_from_proteome.output.txt,
     output:
-        # TER TODO: update output dirpath, add proteome wildcard
-        tsv=OUTPUT_DIRPATH / "uniprot_features.tsv",
+        tsv=OUTPUT_DIRPATH / "uniprot" / "proteomes" / "{proteome_id}_features.tsv",
     conda:
         "envs/web_apis.yml"
     shell:
         """
         python ProteinCartography/fetch_uniprot_metadata.py \
-            --input {input} \
+            --input {input.txt} \
             --output {output.tsv} \
             --additional-fields {UNIPROT_ADDITIONAL_FIELDS}
         """
@@ -109,8 +111,7 @@ checkpoint download_pdbs:
         # TER TODO update input file
         rules.filter_aggregated_hits.output.filtered_aggregated_hits,
     output:
-        # TER TODO update output folder
-        protein_structures_dir=directory(DOWNLOADED_PROTEIN_STRUCTURES_DIR),
+        protein_structures_dir=directory(OUTPUT_DIRPATH / "pdb_structures" / "{proteome_id}"),
     conda:
         "envs/web_apis.yml"
     shell:
@@ -118,7 +119,7 @@ checkpoint download_pdbs:
         python ProteinCartography/download_pdbs.py \
             --input {input} \
             --output {output.protein_structures_dir} \
-            --max-structures {MAX_STRUCTURES}
+            --max-structures 100000
         """
 
 # TER TODO update function so that it has a wildcard output to foldseek each PDB against all human PDBs
@@ -145,6 +146,7 @@ rule assess_pdbs:
         rules.download_proteincartography_scripts.output.txt,
         get_pdb_filepaths,
     # TER TODO: update output filepath
+    # I think this will need the proteome_id wildcard bc that should be a part of the get_pdb_filepaths output
     output:
         pdb_features=PROTEIN_FEATURES_DIR / "pdb_features.tsv",
     conda:
@@ -163,7 +165,7 @@ rule compare_each_parasite_pdb_against_human_pdb:
     conda: "envs/foldseek.yml"
     shell:
         """
-        foldseek easy-search <i:PDB|mmCIF[.gz]> ... <i:PDB|mmCIF[.gz]>|<i:stdin> <i:targetFastaFile[.gz]>|<i:targetDB> <o:alignmentFile> <tmpDir> --max-seqs 100
+        foldseek easy-search <i:PDB|mmCIF[.gz]> ... <i:PDB|mmCIF[.gz]>|<i:stdin> <i:targetFastaFile[.gz]>|<i:targetDB> <o:alignmentFile> <tmpDir>
         """
 
 #####################################################
