@@ -1,12 +1,12 @@
 from pathlib import Path
 
 OUTPUT_DIRPATH=Path("outputs/")
-UNIPROT_ADDITIONAL_FIELDS="ft_act_site,cc_activity_regulation,ft_binding,cc_catalytic_activity,cc_cofactor,ft_dna_bind,ec,cc_function,kinetics,cc_pathway,ph_dependence,redox_potential,rhea,ft_site,temp_dependence,fragment,organelle,mass,cc_rna_editing,reviewed,cc_interaction,cc_subunit,cc_developmental_stage,cc_induction,cc_tissue_specificity,go_p,go_c,go,go_f,go_id,cc_allergen,cc_biotechnology,cc_disruption_phenotype,cc_disease,ft_mutagen,cc_pharmaceutical,cc_toxic_dose,ft_intramem,cc_subcellular_location,ft_topo_dom,ft_transmem,ft_chain,ft_crosslnk,ft_disulfid,ft_carbohyd,ft_init_met,ft_lipid,ft_mod_res,ft_peptide,cc_ptm,ft_propep,ft_signal,ft_transit,ft_coiled,ft_compbias,cc_domain,ft_domain,ft_motif,protein_families,ft_region,ft_repeat,ft_zn_fing,lit_pubmed_id"
+# Indicate additional metadata fields to retrieve when fetching UniProt protein metadata.
+# Options documented at https://www.uniprot.org/help/return_fields.
+UNIPROT_ADDITIONAL_FIELDS="ft_act_site,cc_activity_regulation,ft_binding,cc_catalytic_activity,cc_cofactor,ft_dna_bind,ec,cc_function,kinetics,cc_pathway,ph_dependence,redox_potential,rhea,ft_site,temp_dependence,fragment,organelle,mass,cc_rna_editing,reviewed,cc_interaction,cc_subunit,cc_developmental_stage,cc_induction,cc_tissue_specificity,go_id,cc_allergen,cc_biotechnology,cc_disruption_phenotype,cc_disease,ft_mutagen,cc_pharmaceutical,cc_toxic_dose,ft_intramem,cc_subcellular_location,ft_topo_dom,ft_transmem,ft_chain,ft_crosslnk,ft_disulfid,ft_carbohyd,ft_init_met,ft_lipid,ft_mod_res,ft_peptide,cc_ptm,ft_propep,ft_signal,ft_transit,ft_coiled,ft_compbias,cc_domain,ft_domain,ft_motif,protein_families,ft_region,ft_repeat,ft_zn_fing,lit_pubmed_id"
 
-rule all:
-    input:
-        "outputs/plmutils/embedded_proteins.csv",
-        "outputs/plmutils/embedded_protein_names.txt",
+PROTEOME_IDS=['UP000008333', 'UP000002899']
+
 
 ###########################################################
 ## Download and preprocess proteins
@@ -28,6 +28,9 @@ rule download_proteincartography_scripts:
     scripts and environments we need in this workflow. We take this approach instead of making a
     copy of each script inside this repo. Technically, this should be broken out into many rules
     (one per file), but that seemed unnecessarily verbose so I confined it to one rule. 
+    
+    Note the envs that these scripts require (envs/plotting.yml, envs/web_apis.yml) need to already
+    be present in the repo so they are duplicated.
     """
     output:
         # Create an empty file to use a pointer for this rule runnign successfully.
@@ -35,37 +38,36 @@ rule download_proteincartography_scripts:
         # by snakemake output syntax.
         txt=touch("scripts/ProteinCartography_scripts_downloaded.txt"),
         api_utils="ProteinCartography/api_utils.py",
+        artifact_generation_utils="ProteinCartography/tests/artifact_generation_utils.py",
         assess_pdbs="ProteinCartography/assess_pdbs.py",
         color_utils="ProteinCartography/color_utils.py",
         constants="ProteinCartography/constants.py",
         download_pdbs="ProteinCartography/download_pdbs.py",
         fetch_accession="ProteinCartography/fetch_accession.py",
         fetch_uniprot_metadata="ProteinCartography/fetch_uniprot_metadata.py",
+        file_utils="ProteinCartography/file_utils.py",
         mocks="ProteinCartography/tests/mocks.py",
-        envs_web_apis="envs/web_apis.yml",
-        envs_plotting="envs/plotting.yml"
     params: commit="88160fcf098347a29124488f445ed1d9ad72bc12"
     shell:
         """
         curl -JLo {output.api_utils} https://raw.githubusercontent.com/Arcadia-Science/ProteinCartography/{params.commit}/ProteinCartography/api_utils.py
+        curl -JLo {output.artifact_generation_utils} https://raw.githubusercontent.com/Arcadia-Science/ProteinCartography/{params.commit}/ProteinCartography/tests/artifact_generation_utils.py
         curl -JLo {output.assess_pdbs} https://raw.githubusercontent.com/Arcadia-Science/ProteinCartography/{params.commit}/ProteinCartography/assess_pdbs.py
         curl -JLo {output.color_utils} https://raw.githubusercontent.com/Arcadia-Science/ProteinCartography/{params.commit}/ProteinCartography/color_utils.py
         curl -JLo {output.constants} https://raw.githubusercontent.com/Arcadia-Science/ProteinCartography/{params.commit}/ProteinCartography/constants.py
         curl -JLo {output.download_pdbs} https://raw.githubusercontent.com/Arcadia-Science/ProteinCartography/{params.commit}/ProteinCartography/download_pdbs.py
         curl -JLo {output.fetch_accession} https://raw.githubusercontent.com/Arcadia-Science/ProteinCartography/{params.commit}/ProteinCartography/fetch_accession.py
         curl -JLo {output.fetch_uniprot_metadata} https://raw.githubusercontent.com/Arcadia-Science/ProteinCartography/{params.commit}/ProteinCartography/fetch_uniprot_metadata.py
+        curl -JLo {output.file_utils} https://raw.githubusercontent.com/Arcadia-Science/ProteinCartography/{params.commit}/ProteinCartography/files_utils.py
         curl -JLo {output.mocks} https://raw.githubusercontent.com/Arcadia-Science/ProteinCartography/{params.commit}/ProteinCartography/tests/mocks.py
-
-        curl -JLo {output.envs_web_apis} https://raw.githubusercontent.com/Arcadia-Science/ProteinCartography/{params.commit}/envs/web_apis.yml
-        curl -JLo {output.envs_plotting} https://raw.githubusercontent.com/Arcadia-Science/ProteinCartography/{params.commit}/envs/plotting.yml
         """
 
 rule get_uniprot_ids_from_proteome:
-    output: txt = OUTPUT_DIRPATH / "uniprot" / "proteomes" / "{proteome_id}.txt"
-    conda: "envs/"
+    output: txt = OUTPUT_DIRPATH / "uniprot" / "proteomes" / "{proteome_id}_protein_identifiers.txt"
+    conda: "envs/web_apis.yml"
     shell:
         """
-        scripts/get_uniprot_ids_from_proteome.py --uniprot-proteome-id {wildcards.proteome_id} --output {output.txt}
+        python scripts/get_uniprot_ids_from_proteome.py --uniprot-proteome-id {wildcards.proteome_id} --output {output.txt}
         """
 
 rule fetch_uniprot_metadata:
@@ -91,7 +93,18 @@ rule filter_to_proteins_that_contain_a_signal_peptide:
     """
     Parses the UniProt metadata to keep only proteins that are annotated as having a signal peptide.
     """
-
+    input: tsv=rules.fetch_uniprot_metadata.output.tsv
+    output: 
+        tsv=OUTPUT_DIRPATH / "uniprot" / "proteomes" / "{proteome_id}_features_with_signal_peptides.tsv",
+        txt=OUTPUT_DIRPATH / "uniprot" / "proteomes" / "{proteome_id}_protein_identifiers_with_signal_peptides.txt"
+    conda: "envs/tidyverse.yml"
+    shell:
+        """
+        Rscript scripts/filter_to_proteins_that_contain_a_signal_peptide.R \
+            --input {input.tsv} \
+            --output_tsv {output.tsv} \
+            --output_txt {output.txt}
+        """
 
 
 #####################################################
@@ -105,17 +118,16 @@ checkpoint download_pdbs:
     Download all PDB files from AlphaFold
     """
     input:
-        rules.download_proteincartography_scripts.output.txt,
-        # TER TODO update input file
-        rules.filter_aggregated_hits.output.filtered_aggregated_hits,
+        py=rules.download_proteincartography_scripts.output.txt,
+        txt=rules.filter_to_proteins_that_contain_a_signal_peptide.output.txt,
     output:
-        protein_structures_dir=directory(OUTPUT_DIRPATH / "pdb_structures" / "{proteome_id}"),
+        protein_structures_dir=directory(OUTPUT_DIRPATH / "structures" / "alphafold_pdb_structures" / "{proteome_id}"),
     conda:
         "envs/web_apis.yml"
     shell:
         """
         python ProteinCartography/download_pdbs.py \
-            --input {input} \
+            --input {input.txt} \
             --output {output.protein_structures_dir} \
             --max-structures 100000
         """
@@ -143,28 +155,30 @@ rule assess_pdbs:
     input:
         rules.download_proteincartography_scripts.output.txt,
         get_pdb_filepaths,
+        # TER TODO: this dir may need to be a param instead of an input
+        protein_structures_dir=rules.download_pdbs.output.protein_structures_dir
     # TER TODO: update output filepath
     # I think this will need the proteome_id wildcard bc that should be a part of the get_pdb_filepaths output
     output:
-        pdb_features=PROTEIN_FEATURES_DIR / "pdb_features.tsv",
+        tsv=OUTPUT_DIRPATH / "structures" / "alphafold_pdb_quality" / "{proteome_id}.tsv",
     conda:
         "envs/plotting.yml"
     shell:
         """
         python ProteinCartography/assess_pdbs.py \
-            --input {ANALYZED_PROTEIN_STRUCTURES_DIR} \
-            --output {output.pdb_features}
+            --input  {input.protein_structures_dir} \
+            --output {output.tsv}
         """
 
 
-rule compare_each_parasite_pdb_against_human_pdb:
-    input:
-    output:
-    conda: "envs/foldseek.yml"
-    shell:
-        """
-        foldseek easy-search <i:PDB|mmCIF[.gz]> ... <i:PDB|mmCIF[.gz]>|<i:stdin> <i:targetFastaFile[.gz]>|<i:targetDB> <o:alignmentFile> <tmpDir>
-        """
+#rule compare_each_parasite_pdb_against_human_pdb:
+#    input:
+#    output:
+#    conda: "envs/foldseek.yml"
+#    shell:
+#        """
+#        foldseek easy-search <i:PDB|mmCIF[.gz]> ... <i:PDB|mmCIF[.gz]>|<i:stdin> <i:targetFastaFile[.gz]>|<i:targetDB> <o:alignmentFile> <tmpDir>
+#        """
 
 #####################################################
 ## Embed proteins in ESM2
@@ -177,7 +191,7 @@ rule extract_protein_sequences_from_tsv:
     """
 
 rule combine_all_proteins:
-    input:
+    #input:
     output:
         faa="outputs/input_proteins/all_proteins.faa.gz",
     shell:
@@ -247,3 +261,15 @@ rule extract_embedding_rownames:
         """
         seqkit seq --name --only-id {input} --out-file {output.txt}
         """
+
+###################################################################
+## Rule all
+###################################################################
+
+rule all:
+    default_target: True
+    input:
+        expand(rules.fetch_uniprot_metadata.output.tsv, proteome_id = PROTEOME_IDS),
+        expand(rules.assess_pdbs.output.tsv, proteome_id = PROTEOME_IDS), 
+        #"outputs/plmutils/embedded_proteins.csv",
+        #"outputs/plmutils/embedded_protein_names.txt",
