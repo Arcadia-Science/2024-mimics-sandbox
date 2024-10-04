@@ -111,8 +111,6 @@ rule filter_to_proteins_that_contain_a_signal_peptide:
 ## Download and compare structures with foldseek
 #####################################################
 
-# TER TODO download all alphafolded human PDBs and put somehwere
-
 checkpoint download_pdbs:
     """
     Download all PDB files from AlphaFold
@@ -170,6 +168,21 @@ rule assess_pdbs:
             --output {output.tsv}
         """
 
+rule download_human_proteome_structures_from_alphafold:
+    output: tar="inputs/uniprot/human/UP000005640_9606_HUMAN_v4.tar"
+    conda: "envs/web_apis.yml"
+    shell:
+        """
+        curl -JLo {output.tar} https://ftp.ebi.ac.uk/pub/databases/alphafold/latest/UP000005640_9606_HUMAN_v4.tar
+        """
+
+rule decompress_human_proteome_structures_from_alphafold:
+    input: tar=rules.download_human_proteome_structures_from_alphafold.output.tar
+    output: directory("inputs/uniprot/human/structures/")
+    shell:
+        """
+        tar xf {input.tar} -C {output} 
+        """
 
 #rule compare_each_parasite_pdb_against_human_pdb:
 #    input:

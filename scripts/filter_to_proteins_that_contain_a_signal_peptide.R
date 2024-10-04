@@ -19,5 +19,5 @@ uniprot_metadata_with_signal_peptide <- read_tsv(args$input) %>%
   filter(!is.na(signal_peptide))
 
 write_tsv(uniprot_metadata_with_signal_peptide, file = args$output_tsv)
-write_tsv(uniprot_metadata_with_signal_peptide %>% select(signal_peptide),
+write_tsv(uniprot_metadata_with_signal_peptide %>% select(protid),
           file = args$output_txt, col_names = FALSE)
