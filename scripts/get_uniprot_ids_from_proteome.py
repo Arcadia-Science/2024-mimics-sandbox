@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 
 import argparse
+
 import requests
+
 
 def get_uniprot_ids_from_proteome(proteome_id):
     """
