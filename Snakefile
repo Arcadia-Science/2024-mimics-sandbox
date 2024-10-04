@@ -130,8 +130,7 @@ checkpoint download_pdbs:
             --max-structures 100000
         """
 
-# TER TODO update function so that it has a wildcard output to foldseek each PDB against all human PDBs
-def get_pdb_filepaths(wildcards):
+def get_all_pdb_filepaths_per_proteome(wildcards):
     """
     Returns a list of all of the PDB files to use for the clustering analysis.
 
@@ -148,15 +147,12 @@ def get_pdb_filepaths(wildcards):
 
 rule assess_pdbs:
     """
-    Calculates the quality of all PDBs
+    Calculates the quality of all PDBs.
     """
     input:
         rules.download_proteincartography_scripts.output.txt,
-        get_pdb_filepaths,
-        # TER TODO: this dir may need to be a param instead of an input
+        get_all_pdb_filepaths_per_proteome,
         protein_structures_dir=rules.download_pdbs.output.protein_structures_dir
-    # TER TODO: update output filepath
-    # I think this will need the proteome_id wildcard bc that should be a part of the get_pdb_filepaths output
     output:
         tsv=OUTPUT_DIRPATH / "structures" / "alphafold_pdb_quality" / "{proteome_id}.tsv",
     conda:
@@ -178,20 +174,32 @@ rule download_human_proteome_structures_from_alphafold:
 
 rule decompress_human_proteome_structures_from_alphafold:
     input: tar=rules.download_human_proteome_structures_from_alphafold.output.tar
-    output: directory("inputs/uniprot/human/structures/")
+    output: human_protein_structures_dir=directory("inputs/uniprot/human/structures/")
     shell:
         """
         tar xf {input.tar} -C {output} 
         """
 
-#rule compare_each_parasite_pdb_against_human_pdb:
-#    input:
-#    output:
-#    conda: "envs/foldseek.yml"
-#    shell:
-#        """
-#        foldseek easy-search <i:PDB|mmCIF[.gz]> ... <i:PDB|mmCIF[.gz]>|<i:stdin> <i:targetFastaFile[.gz]>|<i:targetDB> <o:alignmentFile> <tmpDir>
-#        """
+rule compare_each_parasite_pdb_against_human_pdb:
+    """
+    TER TODO: output like the foldseek server: foldseek easy-search example/d1asha_ example/ result.html tmp --format-mode 3
+    """
+    input:
+        human_protein_structures_dir=rules.decompress_human_proteome_structures_from_alphafold.output.human_protein_structures_dir,
+        pdbs=get_all_pdb_filepaths_per_proteome,
+    output: tsv=OUTPUT_DIRPATH / "structural_comparison" / "{proteome_id}.tsv" 
+    conda: "envs/foldseek.yml"
+    shell:
+        """
+        foldseek easy-search \
+            {input.pdbs} \
+            {input.human_protein_structures_dir} \
+            {output.tsv} \
+            tmp_foldseek \
+            --format-output query,target,qlen,tlen,alnlen,qca,tca,alntmscore,qtmscore,ttmscore,u,t,lddt,lddtfull,prob,qcov,tcov,pident,bits,cigar,qseq,tseq,qstart,qend,tstart,tend,qaln,taln,qheader,theader \
+            --format-mode 4
+        """
+
 
 #####################################################
 ## Embed proteins in ESM2
@@ -284,5 +292,6 @@ rule all:
     input:
         expand(rules.fetch_uniprot_metadata.output.tsv, proteome_id = PROTEOME_IDS),
         expand(rules.assess_pdbs.output.tsv, proteome_id = PROTEOME_IDS), 
+        expand(rules.compare_each_parasite_pdb_against_human_pdb.output.tsv, proteome_id = PROTEOME_IDS)
         #"outputs/plmutils/embedded_proteins.csv",
         #"outputs/plmutils/embedded_protein_names.txt",
