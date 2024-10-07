@@ -1,25 +1,18 @@
 from pathlib import Path
+import pandas as pd
 
 OUTPUT_DIRPATH=Path("outputs/")
 # Indicate additional metadata fields to retrieve when fetching UniProt protein metadata.
 # Options documented at https://www.uniprot.org/help/return_fields.
 UNIPROT_ADDITIONAL_FIELDS="ft_act_site,cc_activity_regulation,ft_binding,cc_catalytic_activity,cc_cofactor,ft_dna_bind,ec,cc_function,kinetics,cc_pathway,ph_dependence,redox_potential,rhea,ft_site,temp_dependence,fragment,organelle,mass,cc_rna_editing,reviewed,cc_interaction,cc_subunit,cc_developmental_stage,cc_induction,cc_tissue_specificity,go_id,cc_allergen,cc_biotechnology,cc_disruption_phenotype,cc_disease,ft_mutagen,cc_pharmaceutical,cc_toxic_dose,ft_intramem,cc_subcellular_location,ft_topo_dom,ft_transmem,ft_chain,ft_crosslnk,ft_disulfid,ft_carbohyd,ft_init_met,ft_lipid,ft_mod_res,ft_peptide,cc_ptm,ft_propep,ft_signal,ft_transit,ft_coiled,ft_compbias,cc_domain,ft_domain,ft_motif,protein_families,ft_region,ft_repeat,ft_zn_fing,lit_pubmed_id"
 
-PROTEOME_IDS=['UP000008333', 'UP000002899']
-
+#PROTEOME_IDS=['UP000008333', 'UP000002899']
+proteome_metadata = pd.read_csv("inputs/2024_mimics_uniprot_reference_proteomes_human_long_association.tsv", header = 0, sep = "\t")
+PROTEOME_IDS=proteome_metadata['proteome_id'].unique().tolist()
 
 ###########################################################
 ## Download and preprocess proteins
 ###########################################################
-
-rule download_human_uniprot_proteome:
-    output:
-        faa="inputs/uniprot/human/UP000005640_9606.fasta.gz",
-    shell:
-        """
-        curl -JLo {output.faa} https://ftp.uniprot.org/pub/databases/uniprot/current_release/knowledgebase/reference_proteomes/Eukaryota/UP000005640/UP000005640_9606.fasta.gz
-        # curl -JLo {output.faa} https://rest.uniprot.org/uniprotkb/stream\?compressed\=true\&format\=fasta\&query\=%28%28proteome%3AUP000005640%29%29
-        """
 
 rule download_proteincartography_scripts:
     """
@@ -108,6 +101,52 @@ rule filter_to_proteins_that_contain_a_signal_peptide:
 
 
 #####################################################
+## Retrieve human proteome informatio 
+#####################################################
+"""
+Some of these rules are duplicated from other places in the Snakefile.
+We do this so that the human information is treated separately, which makes it simpler to do the
+each-parasite-protein-versus-all-human-proteins comparison.
+"""
+
+rule download_uniprot_proteome_human:
+    output:
+        faa="inputs/uniprot/human/UP000005640_9606.fasta.gz",
+    shell:
+        """
+        curl -JLo {output.faa} https://ftp.uniprot.org/pub/databases/uniprot/current_release/knowledgebase/reference_proteomes/Eukaryota/UP000005640/UP000005640_9606.fasta.gz
+        # curl -JLo {output.faa} https://rest.uniprot.org/uniprotkb/stream\?compressed\=true\&format\=fasta\&query\=%28%28proteome%3AUP000005640%29%29
+        """
+
+rule get_uniprot_ids_from_proteome_human:
+    output: txt = "inputs" / "uniprot" / "human" / "UP000005640_protein_identifiers.txt"
+    conda: "envs/web_apis.yml"
+    shell:
+        """
+        python scripts/get_uniprot_ids_from_proteome.py --uniprot-proteome-id UP000005640 --output {output.txt}
+        """
+
+rule fetch_uniprot_metadata_human:
+    """
+    Query UniProt for human proteins and download all metadata as a TSV.
+    """
+    input:
+        py=rules.download_proteincartography_scripts.output.txt,
+        txt=rules.get_uniprot_ids_from_proteome_human.output.txt,
+    output:
+        tsv="inputs" / "uniprot" / "proteomes" / "UP000005640_features.tsv",
+    conda:
+        "envs/web_apis.yml"
+    shell:
+        """
+        python ProteinCartography/fetch_uniprot_metadata.py \
+            --input {input.txt} \
+            --output {output.tsv} \
+            --additional-fields {UNIPROT_ADDITIONAL_FIELDS}
+        """
+
+
+#####################################################
 ## Download and compare structures with foldseek
 #####################################################
 
@@ -177,7 +216,7 @@ rule decompress_human_proteome_structures_from_alphafold:
     output: human_protein_structures_dir=directory("inputs/uniprot/human/structures/")
     shell:
         """
-        tar xf {input.tar} -C {output} 
+        tar xf {input.tar} --include "*.pdb.gz" -C {output}
         """
 
 rule compare_each_parasite_pdb_against_human_pdb:
@@ -196,7 +235,7 @@ rule compare_each_parasite_pdb_against_human_pdb:
             {input.human_protein_structures_dir} \
             {output.tsv} \
             tmp_foldseek \
-            --format-output query,target,qlen,tlen,alnlen,qca,tca,alntmscore,qtmscore,ttmscore,u,t,lddt,lddtfull,prob,qcov,tcov,pident,bits,cigar,qseq,tseq,qstart,qend,tstart,tend,qaln,taln,qheader,theader \
+            --format-output query,target,qlen,tlen,alnlen,alntmscore,qtmscore,ttmscore,u,t,lddt,lddtfull,prob,qcov,tcov,pident,bits,cigar,qseq,tseq,qstart,qend,tstart,tend,qaln,taln,qca,tca,u,t \
             --format-mode 4
         """
 
@@ -292,6 +331,7 @@ rule all:
     input:
         expand(rules.fetch_uniprot_metadata.output.tsv, proteome_id = PROTEOME_IDS),
         expand(rules.assess_pdbs.output.tsv, proteome_id = PROTEOME_IDS), 
-        expand(rules.compare_each_parasite_pdb_against_human_pdb.output.tsv, proteome_id = PROTEOME_IDS)
+        expand(rules.compare_each_parasite_pdb_against_human_pdb.output.tsv, proteome_id = PROTEOME_IDS),
+        rules.fetch_uniprot_metadata_human.output.tsv,
         #"outputs/plmutils/embedded_proteins.csv",
         #"outputs/plmutils/embedded_protein_names.txt",
