@@ -7,12 +7,13 @@ INPUT_DIRPATH = Path("inputs")
 # Options documented at https://www.uniprot.org/help/return_fields.
 UNIPROT_ADDITIONAL_FIELDS = "ft_act_site,cc_activity_regulation,ft_binding,cc_catalytic_activity,cc_cofactor,ft_dna_bind,ec,cc_function,kinetics,cc_pathway,ph_dependence,redox_potential,rhea,ft_site,temp_dependence,fragment,organelle,mass,cc_rna_editing,reviewed,cc_interaction,cc_subunit,cc_developmental_stage,cc_induction,cc_tissue_specificity,go_id,cc_allergen,cc_biotechnology,cc_disruption_phenotype,cc_disease,ft_mutagen,cc_pharmaceutical,cc_toxic_dose,ft_intramem,cc_subcellular_location,ft_topo_dom,ft_transmem,ft_chain,ft_crosslnk,ft_disulfid,ft_carbohyd,ft_init_met,ft_lipid,ft_mod_res,ft_peptide,cc_ptm,ft_propep,ft_signal,ft_transit,ft_coiled,ft_compbias,cc_domain,ft_domain,ft_motif,protein_families,ft_region,ft_repeat,ft_zn_fing,lit_pubmed_id"
 
-# PROTEOME_IDS=['UP000008333', 'UP000002899']
 proteome_metadata = pd.read_csv(
     "inputs/2024_mimics_uniprot_reference_proteomes_human_long_association.tsv", header=0, sep="\t"
 )
 PROTEOME_IDS = proteome_metadata["proteome_id"].unique().tolist()
-print(PROTEOME_IDS)
+
+#wildcard_constraints:
+#    your_wildcard="|".join(PROTEOME_IDS)
 
 ###########################################################
 ## Download ProteinCartography scripts
@@ -200,9 +201,13 @@ rule filter_to_proteins_that_contain_a_signal_peptide:
         """
 
 
-checkpoint download_pdbs:
+#checkpoint download_pdbs:
+rule download_pdbs:
     """
-    Download all PDB files from AlphaFold
+    Download all PDB files from AlphaFold.
+    While this outputs many PDBs, we don't have any operations in Snakemake where the snakefile
+    needs to be aware of all of the PDB accessions. Therefore, instead of treating this as a
+    checkpoint and complicating the DAG, we'll only designate the dire as output.
     """
     input:
         py=rules.download_proteincartography_scripts.output.txt,
@@ -222,19 +227,21 @@ checkpoint download_pdbs:
         """
 
 
-def get_all_pdb_filepaths_per_proteome(wildcards):
-    """
-    Returns a list of all of the PDB files to use for the clustering analysis.
-
-    This function references the `download_pdbs` checkpoint, triggering it to run,
-    and then returns a list of all of the resulting downloaded PDB files
-    """
-    # note: referencing the `download_pdbs` checkpoint here is essential,
-    # because this is what 'tells' snakemake to run the checkpoint
-    pdb_dirpath = checkpoints.download_pdbs.get(**wildcards).output.protein_structures_dir
-    pdb_filepaths = sorted(Path(pdb_dirpath).glob("*.pdb"))
-
-    return pdb_filepaths
+#def get_all_pdb_filepaths_per_proteome(wildcards):
+#    """
+#    Returns a list of all of the PDB files to use for the clustering analysis.
+#
+#    This function references the `download_pdbs` checkpoint, triggering it to run,
+#    and then returns a list of all of the resulting downloaded PDB files
+#    """
+#    # note: referencing the `download_pdbs` checkpoint here is essential,
+#    # because this is what 'tells' snakemake to run the checkpoint
+#    pdb_dirpath = checkpoints.download_pdbs.get(**wildcards).output.protein_structures_dir
+#    pdb_filepaths = expand(OUTPUT_DIRPATH / "structures" / "alphafold_pdb_structures" / "{{proteome_id}}" / "{pdb}.pdb",
+#                           pdb = glob_wildcards(os.path.join(pdb_dirpath, "{pdb}.pdb")).pdb)
+#    #pdb_filepaths = sorted(Path(pdb_dirpath).glob("*.pdb"))
+#
+#    return pdb_filepaths
 
 
 rule assess_pdbs_per_proteome:
@@ -243,7 +250,6 @@ rule assess_pdbs_per_proteome:
     """
     input:
         rules.download_proteincartography_scripts.output.txt,
-        get_all_pdb_filepaths_per_proteome,
         protein_structures_dir=rules.download_pdbs.output.protein_structures_dir,
     output:
         tsv=OUTPUT_DIRPATH / "structures" / "alphafold_pdb_quality" / "{proteome_id}.tsv",
@@ -263,7 +269,7 @@ rule compare_each_parasite_pdb_against_human_pdb:
     """
     input:
         human_protein_structures_dir=rules.decompress_human_proteome_structures_from_alphafold.output.human_protein_structures_dir,
-        pdbs=get_all_pdb_filepaths_per_proteome,
+        protein_structures_dir=rules.download_pdbs.output.protein_structures_dir,
     output:
         tsv=OUTPUT_DIRPATH / "structural_comparison" / "foldseek_raw" / "{proteome_id}.tsv",
     conda:
@@ -271,7 +277,7 @@ rule compare_each_parasite_pdb_against_human_pdb:
     shell:
         """
         foldseek easy-search \
-            {input.pdbs} \
+            {input.protein_structures_dir}/*pdb \
             {input.human_protein_structures_dir} \
             {output.tsv} \
             tmp_foldseek \
@@ -343,7 +349,7 @@ rule identify_ncbi_ids_for_proteins_from_viruses_that_infect_humans_and_have_str
     input:
         nomburg_xlsx=rules.download_nomburg_supplementary_table.output.xlsx,
         human_viruses_tsv=INPUT_DIRPATH / "viralzone.expasy.org-678.tsv"
-    output: txt=OUTPUT_DIRPATH / "ncbi" / "viruses" / "nomburg_human_virus_ncbi_accessions.txt"
+    output: txt=OUTPUT_DIRPATH / "viruses" / "nomburg_human_virus_ncbi_accessions.txt"
     conda: "envs/tidyverse.yml"
     shell:
         """
@@ -356,7 +362,7 @@ rule identify_ncbi_ids_for_proteins_from_viruses_that_infect_humans_and_have_str
 
 rule convert_ncbi_ids_to_uniprot_accessions:
     input: txt=rules.identify_ncbi_ids_for_proteins_from_viruses_that_infect_humans_and_have_structures_in_nomburg.output.txt
-    output: txt=OUTPUT_DIRPATH / "uniprot" / "viruses" / "nomburg_human_virus_uniprot_accessions.txt"
+    output: txt=OUTPUT_DIRPATH / "viruses" / "nomburg_human_virus_uniprot_accessions.txt"
     conda:
         "envs/web_apis.yml"
     shell:
@@ -366,7 +372,7 @@ rule convert_ncbi_ids_to_uniprot_accessions:
 
 rule fetch_uniprot_metadata_viruses:
     input: txt = rules.convert_ncbi_ids_to_uniprot_accessions.output.txt
-    output: tsv=OUTPUT_DIRPATH / "uniprot" / "viruses" / "nomburg_human_virus_features.tsv"
+    output: tsv=OUTPUT_DIRPATH / "viruses" / "nomburg_human_virus_features.tsv"
     conda:
         "envs/web_apis.yml"
     shell:
@@ -383,8 +389,8 @@ rule determine_which_viral_structures_to_compare_against_human:
         human_viruses_tsv=INPUT_DIRPATH / "viralzone.expasy.org-678.tsv",
         uniprot_tsv=rules.fetch_uniprot_metadata_viruses.output.tsv
     output:
-        txt=OUTPUT_DIRPATH / "uniprot" / "viruses" / "nomburg_human_virus_filepaths.txt",
-        tsv=OUTPUT_DIRPATH / "uniprot" / "viruses" / "nomburg_human_virus_metadata.tsv",
+        txt=OUTPUT_DIRPATH / "viruses" / "nomburg_human_virus_filepaths.txt",
+        tsv=OUTPUT_DIRPATH / "viruses" / "nomburg_human_virus_metadata.tsv",
     conda:
         "envs/tidyverse.yml"
     shell:
@@ -422,7 +428,7 @@ rule compare_each_viral_pdb_against_human_pdb:
         human_protein_structures_dir=rules.decompress_human_proteome_structures_from_alphafold.output.human_protein_structures_dir,
         pdbs=rules.decompress_viral_structures.output.dest_dir
     output:
-        tsv=OUTPUT_DIRPATH / "structural_comparison" / "foldseek_raw" / "nomburg_human_viruses.tsv",
+        tsv=OUTPUT_DIRPATH / "viruses" / "foldseek_raw" / "nomburg_human_viruses.tsv",
     conda:
         "envs/foldseek.yml"
     shell:
@@ -551,7 +557,9 @@ rule extract_embedding_rownames:
 rule all:
     default_target: True
     input:
-        expand(rules.assess_pdbs.output.tsv, proteome_id=PROTEOME_IDS),
+        expand(rules.fetch_uniprot_metadata_per_proteome.output.tsv, proteome_id=PROTEOME_IDS),
+        rules.fetch_uniprot_metadata_human.output.tsv,
+        expand(rules.assess_pdbs_per_proteome.output.tsv, proteome_id=PROTEOME_IDS),
         expand(rules.combine_foldseek_parasite_results_with_uniprot_metadata.output.tsv, proteome_id=PROTEOME_IDS),
         rules.compare_each_viral_pdb_against_human_pdb.output.tsv
         #"outputs/plmutils/embedded_proteins.csv",
