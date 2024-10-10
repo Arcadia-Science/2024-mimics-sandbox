@@ -12,9 +12,6 @@ proteome_metadata = pd.read_csv(
 )
 PROTEOME_IDS = proteome_metadata["proteome_id"].unique().tolist()
 
-#wildcard_constraints:
-#    your_wildcard="|".join(PROTEOME_IDS)
-
 ###########################################################
 ## Download ProteinCartography scripts
 ###########################################################
@@ -201,7 +198,6 @@ rule filter_to_proteins_that_contain_a_signal_peptide:
         """
 
 
-#checkpoint download_pdbs:
 rule download_pdbs:
     """
     Download all PDB files from AlphaFold.
@@ -225,23 +221,6 @@ rule download_pdbs:
             --output {output.protein_structures_dir} \
             --max-structures 100000
         """
-
-
-#def get_all_pdb_filepaths_per_proteome(wildcards):
-#    """
-#    Returns a list of all of the PDB files to use for the clustering analysis.
-#
-#    This function references the `download_pdbs` checkpoint, triggering it to run,
-#    and then returns a list of all of the resulting downloaded PDB files
-#    """
-#    # note: referencing the `download_pdbs` checkpoint here is essential,
-#    # because this is what 'tells' snakemake to run the checkpoint
-#    pdb_dirpath = checkpoints.download_pdbs.get(**wildcards).output.protein_structures_dir
-#    pdb_filepaths = expand(OUTPUT_DIRPATH / "structures" / "alphafold_pdb_structures" / "{{proteome_id}}" / "{pdb}.pdb",
-#                           pdb = glob_wildcards(os.path.join(pdb_dirpath, "{pdb}.pdb")).pdb)
-#    #pdb_filepaths = sorted(Path(pdb_dirpath).glob("*.pdb"))
-#
-#    return pdb_filepaths
 
 
 rule assess_pdbs_per_proteome:
@@ -557,8 +536,6 @@ rule extract_embedding_rownames:
 rule all:
     default_target: True
     input:
-        expand(rules.fetch_uniprot_metadata_per_proteome.output.tsv, proteome_id=PROTEOME_IDS),
-        rules.fetch_uniprot_metadata_human.output.tsv,
         expand(rules.assess_pdbs_per_proteome.output.tsv, proteome_id=PROTEOME_IDS),
         expand(rules.combine_foldseek_parasite_results_with_uniprot_metadata.output.tsv, proteome_id=PROTEOME_IDS),
         rules.compare_each_viral_pdb_against_human_pdb.output.tsv
