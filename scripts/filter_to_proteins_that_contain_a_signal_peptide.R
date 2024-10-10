@@ -16,7 +16,8 @@ args <- parse_args(OptionParser(option_list=option_list))
 
 uniprot_metadata_with_signal_peptide <- read_tsv(args$input) %>%
   clean_names() %>%
-  filter(!is.na(signal_peptide))
+  filter(!is.na(signal_peptide)) %>%
+  filter(str_detect(string = signal_peptide, pattern = "SIGNAL"))
 
 write_tsv(uniprot_metadata_with_signal_peptide, file = args$output_tsv)
 write_tsv(uniprot_metadata_with_signal_peptide %>% select(protid),
