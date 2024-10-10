@@ -334,7 +334,7 @@ rule identify_ncbi_ids_for_proteins_from_viruses_that_infect_humans_and_have_str
         """
         Rscript scripts/identify_ncbi_ids_for_proteins_from_viruses_that_infect_humans_and_have_structures_in_nomburg.R \
             --nomburg {input.nomburg_xlsx} \
-            --human_virsuses {input.human_viruses_tsv} \
+            --human_viruses {input.human_viruses_tsv} \
             --output {output.txt}
         """
 
@@ -374,9 +374,9 @@ rule determine_which_viral_structures_to_compare_against_human:
         "envs/tidyverse.yml"
     shell:
         """
-        Rscript/determine_which_viral_structures_to_compare_against_human.R \
+        Rscript scripts/determine_which_viral_structures_to_compare_against_human.R \
             --nomburg {input.nomburg_xlsx} \
-            --human_virsuses {input.human_viruses_tsv} \
+            --human_viruses {input.human_viruses_tsv} \
             --output_structure_filepaths {output.txt} \
             --output_tsv {output.tsv}
         """

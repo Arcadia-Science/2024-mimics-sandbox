@@ -1,6 +1,7 @@
 library(openxlsx)
 library(tidyverse)
 library(janitor)
+library(optparse)
 
 option_list <- list(
   make_option(c("--nomburg"), type="character",
@@ -26,7 +27,8 @@ supp_table1_parsed <- supp_table1 %>%
 # Read in metadata for viruses that infect humans.
 viralzone_human_viruses <- read_tsv(args$human_viruses) %>%
   rename_with(.cols = everything(), function(x){paste0("viralzone_", x)}) %>%
-  rename(viralzone_link = viralzone_viralzone_link)
+  rename(viralzone_link = viralzone_viralzone_link) %>%
+  mutate(viralzone_genome_assembly_ncbi_taxon_id_aligned_with_nomburg = as.character(viralzone_genome_assembly_ncbi_taxon_id_aligned_with_nomburg))
 
 # Read in and format UniProt metadata 
 uniprot_metadata <- read_tsv("sandbox/try_viral_foldseek_db/human_virus_uniprot_features.tsv") %>%
@@ -50,7 +52,7 @@ uniprot_metadata <- read_tsv("sandbox/try_viral_foldseek_db/human_virus_uniprot_
 # join information together and output structure filepaths in zip archive
 human_viruses_with_structures <- uniprot_metadata %>%
   left_join(supp_table1_parsed, by = c("ref_seq_join" = "ncbi_id")) %>%
-  left_join(viralzone_human_viruses, by = c("taxon_id" = "genome_assembly_ncbi_taxon_id_aligned_with_nomburg")) %>%
+  left_join(viralzone_human_viruses, by = c("taxon_id" = "viralzone_genome_assembly_ncbi_taxon_id_aligned_with_nomburg")) %>%
   # remove TaxonID as it is redundant, and remove subcluster_rep bc it isn't
   # clearly described in Nomburg et al.
   select(-taxonID, -subcluster_rep) %>%
@@ -63,7 +65,7 @@ human_viruses_with_structures <- uniprot_metadata %>%
 
 # Write out relative structure filepaths that will be used to selective decompress
 # structures from zip archive of all viral structures in db.
-write_tsv(human_viruses_with_structures %>% pull(structure_filepaths),
+write_tsv(human_viruses_with_structures %>% select(structure_filepaths) %>% distinct(),
           file = args$output_structure_filepaths,
           col_names = FALSE)
 
