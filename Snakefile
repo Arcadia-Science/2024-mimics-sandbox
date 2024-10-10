@@ -330,26 +330,42 @@ Birth of protein folds and functions in the virome. Nature 633, 710–717 (2024)
 https://doi.org/10.1038/s41586-024-07809-y
 """
 
-rule identify_ncbi_ids_for_proteins_from_viruses_that_infect_humans_and_have_structures_in_nomburg:
-    output:
+rule download_nomburg_supplementary_table:
+    output: xlsx=INPUT_DIRPATH / "41586_2024_7809_MOESM4_ESM.xlsx"
+    conda: "envs/web_apis.yml"
     shell:
         """
-        Rscript
+        curl -JLo {output.xlsx} https://static-content.springer.com/esm/art%3A10.1038%2Fs41586-024-07809-y/MediaObjects/41586_2024_7809_MOESM4_ESM.xlsx
+        """
+
+
+rule identify_ncbi_ids_for_proteins_from_viruses_that_infect_humans_and_have_structures_in_nomburg:
+    input:
+        nomburg_xlsx=rules.download_nomburg_supplementary_table.output.xlsx,
+        human_viruses_tsv=INPUT_DIRPATH / "viralzone.expasy.org-678.tsv"
+    output: txt=OUTPUT_DIRPATH / "ncbi" / "viruses" / "nomburg_human_virus_ncbi_accessions.txt"
+    conda: "envs/tidyverse.yml"
+    shell:
+        """
+        Rscript scripts/identify_ncbi_ids_for_proteins_from_viruses_that_infect_humans_and_have_structures_in_nomburg.R \
+            --nomburg {input.nomburg_xlsx} \
+            --human_virsuses {input.human_viruses_tsv} \
+            --output {output.txt}
         """
 
 
 rule convert_ncbi_ids_to_uniprot_accessions:
-    input:
-    output: txt=""
+    input: txt=rules.identify_ncbi_ids_for_proteins_from_viruses_that_infect_humans_and_have_structures_in_nomburg.output.txt
+    output: txt=OUTPUT_DIRPATH / "uniprot" / "viruses" / "nomburg_human_virus_uniprot_accessions.txt"
     conda:
         "envs/web_apis.yml"
     shell:
         """
-        python ProteinCartography/map_refseq_ids.py -i human_virus_ncbi_ids.txt -o human_virus_uniprot_ids.txt
+        python ProteinCartography/map_refseq_ids.py -i {input.txt} -o {output.txt}
         """
 
 rule fetch_uniprot_metadata_viruses:
-    input: txt = rules.convert_ncbi_ids.to_uniprot_accessions.output.txt
+    input: txt = rules.convert_ncbi_ids_to_uniprot_accessions.output.txt
     output: tsv=OUTPUT_DIRPATH / "uniprot" / "viruses" / "nomburg_human_virus_features.tsv"
     conda:
         "envs/web_apis.yml"
@@ -362,16 +378,41 @@ rule fetch_uniprot_metadata_viruses:
         """
 
 rule determine_which_viral_structures_to_compare_against_human:
+    input:
+        nomburg_xlsx=rules.download_nomburg_supplementary_table.output.xlsx,
+        human_viruses_tsv=INPUT_DIRPATH / "viralzone.expasy.org-678.tsv",
+        uniprot_tsv=rules.fetch_uniprot_metadata_viruses.output.tsv
+    output:
+        txt=OUTPUT_DIRPATH / "uniprot" / "viruses" / "nomburg_human_virus_filepaths.txt",
+        tsv=OUTPUT_DIRPATH / "uniprot" / "viruses" / "nomburg_human_virus_metadata.tsv",
+    conda:
+        "envs/tidyverse.yml"
+    shell:
+        """
+        Rscript/determine_which_viral_structures_to_compare_against_human.R \
+            --nomburg {input.nomburg_xlsx} \
+            --human_virsuses {input.human_viruses_tsv} \
+            --output_structure_filepaths {output.txt} \
+            --output_tsv {output.tsv}
+        """
 
 rule download_nomburg_eukaryotic_virus_structures:
-    output: "inputs/viral/Nomburg_2023_structures.zip"
+    output: zipf=INPUT_DIRPATH / "viral" / "Nomburg_2023_structures.zip"
     shell:
         """
         curl -JLo {output} https://zenodo.org/records/10291581/files/Nomburg_2023_structures.zip?download=1
         """
 
 rule decompress_viral_structures:
-
+    input:
+        zipf=rules.download_nomburg_eukaryotic_virus_structures.output.zipf,
+        txt=rules.determine_which_viral_structures_to_compare_against_human.output.txt
+    output: dest_dir=directory(INPUT_DIRPATH / "viral" / "viral_structures")
+    params: dest_dir = INPUT_DIRPATH / "viral"
+    shell:
+        """
+        unzip {input.zipf} -d {params.dest_dir} $(cat {input.txt})
+        """
 
 rule compare_each_viral_pdb_against_human_pdb:
     """
@@ -379,7 +420,7 @@ rule compare_each_viral_pdb_against_human_pdb:
     """
     input:
         human_protein_structures_dir=rules.decompress_human_proteome_structures_from_alphafold.output.human_protein_structures_dir,
-        pdbs=rules.decompress_viral_structures.output # TER TODO FINISH WHEN OTHER RULES ARE FILLED IN
+        pdbs=rules.decompress_viral_structures.output.dest_dir
     output:
         tsv=OUTPUT_DIRPATH / "structural_comparison" / "foldseek_raw" / "nomburg_human_viruses.tsv",
     conda:
@@ -395,25 +436,25 @@ rule compare_each_viral_pdb_against_human_pdb:
             --format-mode 4
         """
 
-rule combine_foldseek_viral_results_with_uniprot_metadata:
-    input:
-        foldseek_tsv=rules.compare_each_parasite_pdb_against_human_pdb.output.tsv,
-        human_tsv=rules.fetch_uniprot_metadata_human.output.tsv,
-        query_tsv=rules.fetch_uniprot_metadata_viral.output.tsv
-    output: 
-        # TER TODO: update output paths
-        tsv=OUTPUT_DIRPATH / "structural_comparison" / "foldseek_with_uniprot_metadata" / "{proteome_id}_with_uniprot_metadata.tsv.gz",
-        tsv_filtered=OUTPUT_DIRPATH / "structural_comparison" / "foldseek_with_uniprot_metadata" / "{proteome_id}_with_uniprot_metadata_filtered.tsv",
-    conda: "envs/tidyverse.yml"
-    shell:
-        """
-        Rscript scripts/combine_foldseek_results_with_uniprot_metadata.R \
-            --input_foldseek_results {input.foldseek_tsv} \
-            --input_human_metadata {input.human_tsv} \
-            --input_query_metadata {input.query_tsv} \
-            --output {output.tsv} \
-            --output_filtered {output.tsv_filtered}
-        """
+#rule combine_foldseek_viral_results_with_uniprot_metadata:
+#    input:
+#        foldseek_tsv=rules.compare_each_parasite_pdb_against_human_pdb.output.tsv,
+#        human_tsv=rules.fetch_uniprot_metadata_human.output.tsv,
+#        query_tsv=rules.fetch_uniprot_metadata_viral.output.tsv
+#    output: 
+#        # TER TODO: update output paths
+#        tsv=OUTPUT_DIRPATH / "structural_comparison" / "foldseek_with_uniprot_metadata" / "{proteome_id}_with_uniprot_metadata.tsv.gz",
+#        tsv_filtered=OUTPUT_DIRPATH / "structural_comparison" / "foldseek_with_uniprot_metadata" / "{proteome_id}_with_uniprot_metadata_filtered.tsv",
+#    conda: "envs/tidyverse.yml"
+#    shell:
+#        """
+#        Rscript scripts/combine_foldseek_results_with_uniprot_metadata.R \
+#            --input_foldseek_results {input.foldseek_tsv} \
+#            --input_human_metadata {input.human_tsv} \
+#            --input_query_metadata {input.query_tsv} \
+#            --output {output.tsv} \
+#            --output_filtered {output.tsv_filtered}
+#        """
 
 
 #####################################################
@@ -512,5 +553,6 @@ rule all:
     input:
         expand(rules.assess_pdbs.output.tsv, proteome_id=PROTEOME_IDS),
         expand(rules.combine_foldseek_parasite_results_with_uniprot_metadata.output.tsv, proteome_id=PROTEOME_IDS),
+        rules.compare_each_viral_pdb_against_human_pdb.output.tsv
         #"outputs/plmutils/embedded_proteins.csv",
         #"outputs/plmutils/embedded_protein_names.txt",
