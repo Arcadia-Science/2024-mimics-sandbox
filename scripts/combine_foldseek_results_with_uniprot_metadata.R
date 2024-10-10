@@ -10,7 +10,9 @@ option_list <- list(
   make_option(c("--input_query_metadata"), type="character",
               help="Path to query uniprot metadata TSV file."),
   make_option(c("--output"), type="character",
-              help="Path to output TSV file.")
+              help="Path to output TSV file."),
+  make_option(c("--output_filtered"), type="character",
+              help="Path to output TSV file with *TMScore > 0.7.")
 )
 
 args <- parse_args(OptionParser(option_list=option_list))
@@ -39,9 +41,10 @@ foldseek_results <- foldseek_results %>%
                   .before = lddt) %>%
   arrange(desc(alntmscore))
 
-# foldseek_results_top_matches <- foldseek_results %>%
-#   group_by(query) %>%
-#   slice_max(qtmscore) %>%
-#   filter(qtmscore > 0.7 | alntmscore > 0.7 | ttmscore > 0.7)
-
 write_tsv(foldseek_results, args$output)
+
+foldseek_results_top_matches <- foldseek_results %>%
+  group_by(query) %>%
+  filter(qtmscore > 0.7 | alntmscore > 0.7 | ttmscore > 0.7)
+
+write_tsv(foldseek_results_top_matches, args$output_filtered)
