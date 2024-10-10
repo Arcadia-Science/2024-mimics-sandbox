@@ -4,5 +4,6 @@ channels:
    - defaults
 dependencies:
    - r-janitor=2.2.0
+   - r-openxlsx=4.2.7.1
    - r-optparse=1.7.5
    - r-tidyverse=2.0.0

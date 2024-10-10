@@ -15,7 +15,7 @@ PROTEOME_IDS = proteome_metadata["proteome_id"].unique().tolist()
 print(PROTEOME_IDS)
 
 ###########################################################
-## Download and preprocess proteins
+## Download ProteinCartography scripts
 ###########################################################
 
 
@@ -44,6 +44,7 @@ rule download_proteincartography_scripts:
         fetch_accession="ProteinCartography/fetch_accession.py",
         fetch_uniprot_metadata="ProteinCartography/fetch_uniprot_metadata.py",
         file_utils="ProteinCartography/file_utils.py",
+        map_refseq_ids="ProteinCartography/map_refseq_ids.py",
         mocks="ProteinCartography/tests/mocks.py",
     params:
         commit="88160fcf098347a29124488f445ed1d9ad72bc12",
@@ -58,71 +59,18 @@ rule download_proteincartography_scripts:
         curl -JLo {output.fetch_accession} https://raw.githubusercontent.com/Arcadia-Science/ProteinCartography/{params.commit}/ProteinCartography/fetch_accession.py
         curl -JLo {output.fetch_uniprot_metadata} https://raw.githubusercontent.com/Arcadia-Science/ProteinCartography/{params.commit}/ProteinCartography/fetch_uniprot_metadata.py
         curl -JLo {output.file_utils} https://raw.githubusercontent.com/Arcadia-Science/ProteinCartography/{params.commit}/ProteinCartography/files_utils.py
+        curl -JLo {output.map_refseq_ids} https://raw.githubusercontent.com/Arcadia-Science/ProteinCartography/{params.commit}/ProteinCartography/map_refseq_ids.py
         curl -JLo {output.mocks} https://raw.githubusercontent.com/Arcadia-Science/ProteinCartography/{params.commit}/ProteinCartography/tests/mocks.py
         """
 
 
-rule get_uniprot_ids_from_proteome:
-    output:
-        txt=OUTPUT_DIRPATH / "uniprot" / "proteomes" / "{proteome_id}_protein_identifiers.txt",
-    conda:
-        "envs/web_apis.yml"
-    shell:
-        """
-        python scripts/get_uniprot_ids_from_proteome.py --uniprot-proteome-id {wildcards.proteome_id} --output {output.txt}
-        """
-
-
-rule fetch_uniprot_metadata:
-    """
-    Query Uniprot for the aggregated hits and download all metadata as a big ol' TSV.
-    """
-    input:
-        py=rules.download_proteincartography_scripts.output.txt,
-        txt=rules.get_uniprot_ids_from_proteome.output.txt,
-    output:
-        tsv=OUTPUT_DIRPATH / "uniprot" / "proteomes" / "{proteome_id}_features.tsv",
-    conda:
-        "envs/web_apis.yml"
-    shell:
-        """
-        python ProteinCartography/fetch_uniprot_metadata.py \
-            --input {input.txt} \
-            --output {output.tsv} \
-            --additional-fields {UNIPROT_ADDITIONAL_FIELDS} 
-        """
-
-
-rule filter_to_proteins_that_contain_a_signal_peptide:
-    """
-    Parses the UniProt metadata to keep only proteins that are annotated as having a signal peptide.
-    """
-    input:
-        tsv=rules.fetch_uniprot_metadata.output.tsv,
-    output:
-        tsv=OUTPUT_DIRPATH
-        / "uniprot"
-        / "proteomes"
-        / "{proteome_id}_features_with_signal_peptides.tsv",
-        txt=OUTPUT_DIRPATH
-        / "uniprot"
-        / "proteomes"
-        / "{proteome_id}_protein_identifiers_with_signal_peptides.txt",
-    conda:
-        "envs/tidyverse.yml"
-    shell:
-        """
-        Rscript scripts/filter_to_proteins_that_contain_a_signal_peptide.R \
-            --input {input.tsv} \
-            --output_tsv {output.tsv} \
-            --output_txt {output.txt}
-        """
-
-
 #####################################################
-## Retrieve human proteome informatio
+## Get human proteome information
 #####################################################
 """
+The human information downloaded in this section will be used across all methods (structural,
+embeddings) and comparison types (eukaryotic, viral) to detect structural mimics.
+
 Some of these rules are duplicated from other places in the Snakefile.
 We do this so that the human information is treated separately, which makes it simpler to do the
 each-parasite-protein-versus-all-human-proteins comparison.
@@ -169,10 +117,87 @@ rule fetch_uniprot_metadata_human:
             --additional-fields {UNIPROT_ADDITIONAL_FIELDS}
         """
 
+rule download_human_proteome_structures_from_alphafold:
+    output:
+        tar=INPUT_DIRPATH / "uniprot" / "human"/ "UP000005640_9606_HUMAN_v4.tar",
+    conda:
+        "envs/web_apis.yml"
+    shell:
+        """
+        curl -JLo {output.tar} https://ftp.ebi.ac.uk/pub/databases/alphafold/latest/UP000005640_9606_HUMAN_v4.tar
+        """
 
-#####################################################
-## Download and compare structures with foldseek
-#####################################################
+
+rule decompress_human_proteome_structures_from_alphafold:
+    input:
+        tar=rules.download_human_proteome_structures_from_alphafold.output.tar,
+    output:
+        human_protein_structures_dir=directory(INPUT_DIRPATH / "uniprot" / "human" / "structures"),
+    shell:
+        """
+        tar xf {input.tar} --include "*.pdb.gz" -C {output}
+        """
+
+
+###########################################################
+## Eukaryotic structural comparisons
+###########################################################
+
+rule get_uniprot_ids_from_proteome_id:
+    output:
+        txt=OUTPUT_DIRPATH / "uniprot" / "proteomes" / "{proteome_id}_protein_identifiers.txt",
+    conda:
+        "envs/web_apis.yml"
+    shell:
+        """
+        python scripts/get_uniprot_ids_from_proteome.py --uniprot-proteome-id {wildcards.proteome_id} --output {output.txt}
+        """
+
+
+rule fetch_uniprot_metadata_per_proteome:
+    """
+    Query Uniprot for the aggregated hits and download all metadata as a big ol' TSV.
+    """
+    input:
+        py=rules.download_proteincartography_scripts.output.txt,
+        txt=rules.get_uniprot_ids_from_proteome_id.output.txt,
+    output:
+        tsv=OUTPUT_DIRPATH / "uniprot" / "proteomes" / "{proteome_id}_features.tsv",
+    conda:
+        "envs/web_apis.yml"
+    shell:
+        """
+        python ProteinCartography/fetch_uniprot_metadata.py \
+            --input {input.txt} \
+            --output {output.tsv} \
+            --additional-fields {UNIPROT_ADDITIONAL_FIELDS} 
+        """
+
+
+rule filter_to_proteins_that_contain_a_signal_peptide:
+    """
+    Parses the UniProt metadata to keep only proteins that are annotated as having a signal peptide.
+    """
+    input:
+        tsv=rules.fetch_uniprot_metadata_per_proteome.output.tsv,
+    output:
+        tsv=OUTPUT_DIRPATH
+        / "uniprot"
+        / "proteomes"
+        / "{proteome_id}_features_with_signal_peptides.tsv",
+        txt=OUTPUT_DIRPATH
+        / "uniprot"
+        / "proteomes"
+        / "{proteome_id}_protein_identifiers_with_signal_peptides.txt",
+    conda:
+        "envs/tidyverse.yml"
+    shell:
+        """
+        Rscript scripts/filter_to_proteins_that_contain_a_signal_peptide.R \
+            --input {input.tsv} \
+            --output_tsv {output.tsv} \
+            --output_txt {output.txt}
+        """
 
 
 checkpoint download_pdbs:
@@ -212,7 +237,7 @@ def get_all_pdb_filepaths_per_proteome(wildcards):
     return pdb_filepaths
 
 
-rule assess_pdbs:
+rule assess_pdbs_per_proteome:
     """
     Calculates the quality of all PDBs.
     """
@@ -232,28 +257,6 @@ rule assess_pdbs:
         """
 
 
-rule download_human_proteome_structures_from_alphafold:
-    output:
-        tar=INPUT_DIRPATH / "uniprot" / "human"/ "UP000005640_9606_HUMAN_v4.tar",
-    conda:
-        "envs/web_apis.yml"
-    shell:
-        """
-        curl -JLo {output.tar} https://ftp.ebi.ac.uk/pub/databases/alphafold/latest/UP000005640_9606_HUMAN_v4.tar
-        """
-
-
-rule decompress_human_proteome_structures_from_alphafold:
-    input:
-        tar=rules.download_human_proteome_structures_from_alphafold.output.tar,
-    output:
-        human_protein_structures_dir=directory(INPUT_DIRPATH / "uniprot" / "human" / "structures"),
-    shell:
-        """
-        tar xf {input.tar} --include "*.pdb.gz" -C {output}
-        """
-
-
 rule compare_each_parasite_pdb_against_human_pdb:
     """
     TER TODO: output like the foldseek server: foldseek easy-search example/d1asha_ example/ result.html tmp --format-mode 3
@@ -262,7 +265,7 @@ rule compare_each_parasite_pdb_against_human_pdb:
         human_protein_structures_dir=rules.decompress_human_proteome_structures_from_alphafold.output.human_protein_structures_dir,
         pdbs=get_all_pdb_filepaths_per_proteome,
     output:
-        tsv=OUTPUT_DIRPATH / "structural_comparison" / "{proteome_id}.tsv",
+        tsv=OUTPUT_DIRPATH / "structural_comparison" / "foldseek_raw" / "{proteome_id}.tsv",
     conda:
         "envs/foldseek.yml"
     shell:
@@ -276,13 +279,14 @@ rule compare_each_parasite_pdb_against_human_pdb:
             --format-mode 4
         """
 
-rule combine_foldseek_results_with_uniprot_metadata:
+rule combine_foldseek_parasite_results_with_uniprot_metadata:
     input:
         foldseek_tsv=rules.compare_each_parasite_pdb_against_human_pdb.output.tsv,
         human_tsv=rules.fetch_uniprot_metadata_human.output.tsv,
-        query_tsv=rules.fetch_uniprot_metadata.output.tsv
+        query_tsv=rules.fetch_uniprot_metadata_per_proteome.output.tsv
     output: 
-        tsv=OUTPUT_DIRPATH / "structural_comparison" / "{proteome_id}_with_uniprot_metadata.tsv",
+        tsv=OUTPUT_DIRPATH / "structural_comparison" / "foldseek_with_uniprot_metadata" / "{proteome_id}_with_uniprot_metadata.tsv.gz",
+        tsv_filtered=OUTPUT_DIRPATH / "structural_comparison" / "foldseek_with_uniprot_metadata" / "{proteome_id}_with_uniprot_metadata_filtered.tsv",
     conda: "envs/tidyverse.yml"
     shell:
         """
@@ -290,8 +294,128 @@ rule combine_foldseek_results_with_uniprot_metadata:
             --input_foldseek_results {input.foldseek_tsv} \
             --input_human_metadata {input.human_tsv} \
             --input_query_metadata {input.query_tsv} \
-            --output {output}
+            --output {output.tsv} \
+            --output_filtered {output.tsv_filtered}
         """
+
+#########################################################################
+## Viral structural comparisons
+#########################################################################
+
+"""
+As of Oct 2024, viral UniProt sequences are not a part of alphafold so can't be handled in the same
+way as the eukaryotic parasites above. If this changes, we have included UniProt proteome
+identifiers in the metadata table that records viruses that infect humans. This table could be read
+in and the proteome IDs added to the PROTEOME_IDS variable at the top of this Snakefile, allowing
+viruses to be processed with the rules used on eukaryotic parasites above.
+
+Until then, we use a different approach to structurally compare viral proteins against human
+proteins. Nomburg et al. 2024 generated a database of viral protein structures for viruses that
+infect Eukaryotes. Since we're only interested in viruses that infect humans, we use the ViralZone
+human viruses table (https://viralzone.expasy.org/678) to filter the Nomburg database to
+human-infecting viruses. We do this by matching NCBI Taxonomy identifiers (note we generated NCBI
+taxonomy identifiers for each of the genome representatives in the ViralZone 678 table, see
+[here](https://github.com/Arcadia-Science/2024-parasite-human-mimics/issues/3)).
+
+After filtering to proteins from viruses that infect humans, we extracted the NCBI accession for
+each protein and retrieved the UniProt accession for those proteins. This step isn't strictly
+necessary, but we wanted to work with viral proteins that had UniProt annotations as these are a
+rich source of metadata (ex. subcellular location, etc.). We then decompress the viral structures
+that fit these criteria and compare them against human structures to identify structural mimics.
+
+Below, "nomburg" refers to the paper that generated the 67k structure predictions for viruses that
+infect Eukaryotes:
+Nomburg, J., Doherty, E.E., Price, N. et al. 
+Birth of protein folds and functions in the virome. Nature 633, 710–717 (2024). 
+https://doi.org/10.1038/s41586-024-07809-y
+"""
+
+rule identify_ncbi_ids_for_proteins_from_viruses_that_infect_humans_and_have_structures_in_nomburg:
+    output:
+    shell:
+        """
+        Rscript
+        """
+
+
+rule convert_ncbi_ids_to_uniprot_accessions:
+    input:
+    output: txt=""
+    conda:
+        "envs/web_apis.yml"
+    shell:
+        """
+        python ProteinCartography/map_refseq_ids.py -i human_virus_ncbi_ids.txt -o human_virus_uniprot_ids.txt
+        """
+
+rule fetch_uniprot_metadata_viruses:
+    input: txt = rules.convert_ncbi_ids.to_uniprot_accessions.output.txt
+    output: tsv=OUTPUT_DIRPATH / "uniprot" / "viruses" / "nomburg_human_virus_features.tsv"
+    conda:
+        "envs/web_apis.yml"
+    shell:
+        """
+        python ProteinCartography/fetch_uniprot_metadata.py \
+            --input {input.txt} \
+            --output {output.tsv} \
+            --additional-fields {UNIPROT_ADDITIONAL_FIELDS}
+        """
+
+rule determine_which_viral_structures_to_compare_against_human:
+
+rule download_nomburg_eukaryotic_virus_structures:
+    output: "inputs/viral/Nomburg_2023_structures.zip"
+    shell:
+        """
+        curl -JLo {output} https://zenodo.org/records/10291581/files/Nomburg_2023_structures.zip?download=1
+        """
+
+rule decompress_viral_structures:
+
+
+rule compare_each_viral_pdb_against_human_pdb:
+    """
+    TER TODO: output like the foldseek server: foldseek easy-search example/d1asha_ example/ result.html tmp --format-mode 3
+    """
+    input:
+        human_protein_structures_dir=rules.decompress_human_proteome_structures_from_alphafold.output.human_protein_structures_dir,
+        pdbs=rules.decompress_viral_structures.output # TER TODO FINISH WHEN OTHER RULES ARE FILLED IN
+    output:
+        tsv=OUTPUT_DIRPATH / "structural_comparison" / "foldseek_raw" / "nomburg_human_viruses.tsv",
+    conda:
+        "envs/foldseek.yml"
+    shell:
+        """
+        foldseek easy-search \
+            {input.pdbs} \
+            {input.human_protein_structures_dir} \
+            {output.tsv} \
+            tmp_foldseek \
+            --format-output query,target,qlen,tlen,alnlen,alntmscore,qtmscore,ttmscore,lddt,lddtfull,prob,qcov,tcov,pident,bits,cigar,qseq,tseq,qstart,qend,tstart,tend,qaln,taln,qca,tca,u,t \
+            --format-mode 4
+        """
+
+rule combine_foldseek_viral_results_with_uniprot_metadata:
+    input:
+        foldseek_tsv=rules.compare_each_parasite_pdb_against_human_pdb.output.tsv,
+        human_tsv=rules.fetch_uniprot_metadata_human.output.tsv,
+        query_tsv=rules.fetch_uniprot_metadata_viral.output.tsv
+    output: 
+        # TER TODO: update output paths
+        tsv=OUTPUT_DIRPATH / "structural_comparison" / "foldseek_with_uniprot_metadata" / "{proteome_id}_with_uniprot_metadata.tsv.gz",
+        tsv_filtered=OUTPUT_DIRPATH / "structural_comparison" / "foldseek_with_uniprot_metadata" / "{proteome_id}_with_uniprot_metadata_filtered.tsv",
+    conda: "envs/tidyverse.yml"
+    shell:
+        """
+        Rscript scripts/combine_foldseek_results_with_uniprot_metadata.R \
+            --input_foldseek_results {input.foldseek_tsv} \
+            --input_human_metadata {input.human_tsv} \
+            --input_query_metadata {input.query_tsv} \
+            --output {output.tsv} \
+            --output_filtered {output.tsv_filtered}
+        """
+
+
 #####################################################
 ## Embed proteins in ESM2
 #####################################################
@@ -386,9 +510,7 @@ rule extract_embedding_rownames:
 rule all:
     default_target: True
     input:
-        expand(rules.fetch_uniprot_metadata.output.tsv, proteome_id=PROTEOME_IDS),
         expand(rules.assess_pdbs.output.tsv, proteome_id=PROTEOME_IDS),
-        expand(rules.combine_foldseek_results_with_uniprot_metadata.output.tsv, proteome_id=PROTEOME_IDS),
-        rules.fetch_uniprot_metadata_human.output.tsv,
+        expand(rules.combine_foldseek_parasite_results_with_uniprot_metadata.output.tsv, proteome_id=PROTEOME_IDS),
         #"outputs/plmutils/embedded_proteins.csv",
         #"outputs/plmutils/embedded_protein_names.txt",
