@@ -245,6 +245,9 @@ rule assess_pdbs_per_proteome:
 rule compare_each_parasite_pdb_against_human_pdb:
     """
     TER TODO: output like the foldseek server: foldseek easy-search example/d1asha_ example/ result.html tmp --format-mode 3
+    For evalue filtering (-e), see
+    [this issue](https://github.com/steineggerlab/foldseek/issues/167#issuecomment-1674254348),
+    which recommends filtering with an evalue threshold of 0.01.
     """
     input:
         human_protein_structures_dir=rules.decompress_human_proteome_structures_from_alphafold.output.human_protein_structures_dir,
@@ -260,7 +263,8 @@ rule compare_each_parasite_pdb_against_human_pdb:
             {input.human_protein_structures_dir} \
             {output.tsv} \
             tmp_foldseek \
-            --format-output query,target,qlen,tlen,alnlen,alntmscore,qtmscore,ttmscore,lddt,lddtfull,prob,qcov,tcov,pident,bits,cigar,qseq,tseq,qstart,qend,tstart,tend,qaln,taln,qca,tca,u,t \
+            -e 0.01 \
+            --format-output query,target,qlen,tlen,alnlen,alntmscore,qtmscore,ttmscore,lddt,lddtfull,prob,qcov,tcov,pident,bits,evalue,cigar,qseq,tseq,qstart,qend,tstart,tend,qaln,taln,qca,tca,u,t \
             --format-mode 4
         """
 
@@ -362,6 +366,7 @@ rule fetch_uniprot_metadata_viruses:
             --additional-fields {UNIPROT_ADDITIONAL_FIELDS}
         """
 
+
 rule determine_which_viral_structures_to_compare_against_human:
     input:
         nomburg_xlsx=rules.download_nomburg_supplementary_table.output.xlsx,
@@ -381,6 +386,7 @@ rule determine_which_viral_structures_to_compare_against_human:
             --output_tsv {output.tsv}
         """
 
+
 rule download_nomburg_eukaryotic_virus_structures:
     output: zipf=INPUT_DIRPATH / "viral" / "Nomburg_2023_structures.zip"
     shell:
@@ -388,7 +394,11 @@ rule download_nomburg_eukaryotic_virus_structures:
         curl -JLo {output} https://zenodo.org/records/10291581/files/Nomburg_2023_structures.zip?download=1
         """
 
+
 rule decompress_viral_structures:
+    """
+    Only decompress structures that we want to compare against human structures.
+    """
     input:
         zipf=rules.download_nomburg_eukaryotic_virus_structures.output.zipf,
         txt=rules.determine_which_viral_structures_to_compare_against_human.output.txt
@@ -396,8 +406,9 @@ rule decompress_viral_structures:
     params: dest_dir = INPUT_DIRPATH / "viral"
     shell:
         """
-        unzip {input.zipf} -d {params.dest_dir} $(cat {input.txt})
+        cat {input.txt} | tr '\n' '\0' | xargs -0 unzip {input.zipf} -d {params.dest_dir}
         """
+
 
 rule compare_each_viral_pdb_against_human_pdb:
     """
@@ -417,29 +428,29 @@ rule compare_each_viral_pdb_against_human_pdb:
             {input.human_protein_structures_dir} \
             {output.tsv} \
             tmp_foldseek \
-            --format-output query,target,qlen,tlen,alnlen,alntmscore,qtmscore,ttmscore,lddt,lddtfull,prob,qcov,tcov,pident,bits,cigar,qseq,tseq,qstart,qend,tstart,tend,qaln,taln,qca,tca,u,t \
+            -e 0.01 \
+            --format-output query,target,qlen,tlen,alnlen,alntmscore,qtmscore,ttmscore,lddt,lddtfull,prob,qcov,tcov,pident,bits,evalue,cigar,qseq,tseq,qstart,qend,tstart,tend,qaln,taln,qca,tca,u,t \
             --format-mode 4
         """
 
-#rule combine_foldseek_viral_results_with_uniprot_metadata:
-#    input:
-#        foldseek_tsv=rules.compare_each_parasite_pdb_against_human_pdb.output.tsv,
-#        human_tsv=rules.fetch_uniprot_metadata_human.output.tsv,
-#        query_tsv=rules.fetch_uniprot_metadata_viral.output.tsv
-#    output: 
-#        # TER TODO: update output paths
-#        tsv=OUTPUT_DIRPATH / "structural_comparison" / "foldseek_with_uniprot_metadata" / "{proteome_id}_with_uniprot_metadata.tsv.gz",
-#        tsv_filtered=OUTPUT_DIRPATH / "structural_comparison" / "foldseek_with_uniprot_metadata" / "{proteome_id}_with_uniprot_metadata_filtered.tsv",
-#    conda: "envs/tidyverse.yml"
-#    shell:
-#        """
-#        Rscript scripts/combine_foldseek_results_with_uniprot_metadata.R \
-#            --input_foldseek_results {input.foldseek_tsv} \
-#            --input_human_metadata {input.human_tsv} \
-#            --input_query_metadata {input.query_tsv} \
-#            --output {output.tsv} \
-#            --output_filtered {output.tsv_filtered}
-#        """
+rule combine_foldseek_viral_results_with_metadata:
+    input:
+        foldseek_tsv=rules.compare_each_viral_pdb_against_human_pdb.output.tsv,
+        human_tsv=rules.fetch_uniprot_metadata_human.output.tsv,
+        query_tsv=rules.determine_which_viral_structures_to_compare_against_human.output.tsv
+    output: 
+        tsv=OUTPUT_DIRPATH / "viruses" / "foldseek_with_uniprot_metadata" / "nomburg_human_viruses_with_uniprot_metadata.tsv.gz",
+        tsv_filtered=OUTPUT_DIRPATH / "viruses" / "foldseek_with_uniprot_metadata" / "nomburg_human_viruses_with_uniprot_metadata_filtered.tsv",
+    conda: "envs/tidyverse.yml"
+    shell:
+        """
+        Rscript scripts/combine_foldseek_results_with_metadata_viral.R \
+            --input_foldseek_results {input.foldseek_tsv} \
+            --input_human_metadata {input.human_tsv} \
+            --input_query_metadata {input.query_tsv} \
+            --output {output.tsv} \
+            --output_filtered {output.tsv_filtered}
+        """
 
 
 #####################################################
@@ -538,6 +549,6 @@ rule all:
     input:
         expand(rules.assess_pdbs_per_proteome.output.tsv, proteome_id=PROTEOME_IDS),
         expand(rules.combine_foldseek_parasite_results_with_uniprot_metadata.output.tsv, proteome_id=PROTEOME_IDS),
-        rules.compare_each_viral_pdb_against_human_pdb.output.tsv
+        rules.combine_foldseek_viral_results_with_metadata.output.tsv,
         #"outputs/plmutils/embedded_proteins.csv",
         #"outputs/plmutils/embedded_protein_names.txt",
