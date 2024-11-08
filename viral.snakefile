@@ -130,7 +130,7 @@ rule filter_nomburg_viruses_by_host:
     conda: "envs/tidyverse.yml"
     shell:
         """
-        Rscript filter_nomburg_viruses_by_host.R \
+        Rscript scripts/filter_nomburg_viruses_by_host.R \
             --host_organism {wildcards.host_organism} \
             --host_metadata {input.csv} \
             --nomburg_metadata {input.xlsx} \
@@ -155,11 +155,13 @@ rule decompress_viral_structures:
     input:
         zipf=rules.download_nomburg_eukaryotic_virus_structures.output.zipf,
         txt=rules.filter_nomburg_viruses_by_host.output.txt
-    output: dest_dir=directory(INPUT_DIRPATH / "viral" / "{host_organism}" / "viral_structures")
-    params: dest_dir = lambda wildcards: INPUT_DIRPATH / "viral" / wildcards.host_organism
+    output: dest_dir=directory(OUTPUT_DIRPATH / "viral" / "{host_organism}" / "viral_structures")
     shell:
         """
-        cat {input.txt} | tr '\n' '\0' | xargs -0 unzip {input.zipf} -d {params.dest_dir}
+        python scripts/decompress_viral_structures.py \
+            --input_txt {input.txt} \
+            --zip_file {input.zipf} \
+            --dest_dir {output.dest_dir}
         """
 
 #####################################################################
@@ -244,29 +246,28 @@ rule assess_pdbs_per_proteome:
         """
 
 
-# TER TODO: figure out which are problematic columns and remove from output
-#rule compare_each_viral_pdb_against_human_pdb:
-#    """
-#    TER TODO: output like the foldseek server: foldseek easy-search example/d1asha_ example/ result.html tmp --format-mode 3
-#    """
-#    input:
-#        human_protein_structures_dir=rules.decompress_human_proteome_structures_from_alphafold.output.human_protein_structures_dir,
-#        pdbs=rules.decompress_viral_structures.output.dest_dir
-#    output:
-#        tsv=OUTPUT_DIRPATH / "viruses" / "foldseek_raw" / "nomburg_human_viruses.tsv",
-#    conda:
-#        "envs/foldseek.yml"
-#    shell:
-#        """
-#        foldseek easy-search \
-#            {input.pdbs} \
-#            {input.human_protein_structures_dir} \
-#            {output.tsv} \
-#            tmp_foldseek \
-#            -e 0.01 \
-#            --format-output query,target,qlen,tlen,alnlen,alntmscore,qtmscore,ttmscore,lddt,lddtfull,prob,qcov,tcov,pident,bits,evalue,cigar,qseq,tseq,qstart,qend,tstart,tend,qaln,taln,qca,tca,u,t \
-#            --format-mode 4
-#        """
+rule compare_each_viral_pdb_against_all_host_pdbs:
+    """
+    TER TODO: output like the foldseek server: foldseek easy-search example/d1asha_ example/ result.html tmp --format-mode 3
+    """
+    input:
+        protein_structures_dir=rules.download_pdbs.output.protein_structures_dir,
+        pdbs=rules.decompress_viral_structures.output.dest_dir
+    output:
+        tsv=OUTPUT_DIRPATH / "viral" / "{host_organism}" / "nomburg_virus_matches.tsv",
+    conda:
+        "envs/foldseek.yml"
+    shell:
+        """
+        foldseek easy-search \
+            {input.pdbs} \
+            {input.human_protein_structures_dir} \
+            {output.tsv} \
+            tmp_foldseek \
+            -e 0.01 \
+            --format-output query,target,qlen,tlen,alnlen,alntmscore,qtmscore,ttmscore,lddt,prob,qcov,tcov,pident,bits,evalue,cigar,qseq,tseq,qstart,qend,tstart,tend,qaln,taln \
+            --format-mode 4
+        """
 
 rule all:
     default_target: True
