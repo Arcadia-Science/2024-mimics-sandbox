@@ -29,7 +29,7 @@ rule download_proteincartography_scripts:
     be present in the repo so they are duplicated.
     """
     output:
-        # Create an empty file to use a pointer for this rule runnign successfully.
+        # Create an empty file to use a pointer for this rule running successfully.
         # This will allow us to refer to the ProteinCartography scripts by name/filepath instead of
         # by snakemake output syntax.
         txt=touch("scripts/ProteinCartography_scripts_downloaded.txt"),
@@ -66,8 +66,7 @@ rule download_proteincartography_scripts:
 ## Get human proteome information
 #####################################################
 """
-The human information downloaded in this section will be used across all methods (structural,
-embeddings) and comparison types (eukaryotic, viral) to detect structural mimics.
+The human information downloaded in this section will be used to detect structural mimics.
 
 Some of these rules are duplicated from other places in the Snakefile.
 We do this so that the human information is treated separately, which makes it simpler to do the
@@ -81,7 +80,6 @@ rule download_uniprot_proteome_human:
     shell:
         """
         curl -JLo {output.faa} https://ftp.uniprot.org/pub/databases/uniprot/current_release/knowledgebase/reference_proteomes/Eukaryota/UP000005640/UP000005640_9606.fasta.gz
-        # curl -JLo {output.faa} https://rest.uniprot.org/uniprotkb/stream\?compressed\=true\&format\=fasta\&query\=%28%28proteome%3AUP000005640%29%29
         """
 
 
@@ -203,7 +201,7 @@ rule download_pdbs:
     Download all PDB files from AlphaFold.
     While this outputs many PDBs, we don't have any operations in Snakemake where the snakefile
     needs to be aware of all of the PDB accessions. Therefore, instead of treating this as a
-    checkpoint and complicating the DAG, we'll only designate the dire as output.
+    checkpoint and complicating the DAG, we'll only designate the directory as output.
     """
     input:
         py=rules.download_proteincartography_scripts.output.txt,
@@ -287,257 +285,6 @@ rule combine_foldseek_parasite_results_with_uniprot_metadata:
             --output_filtered {output.tsv_filtered}
         """
 
-#########################################################################
-## Viral structural comparisons
-#########################################################################
-
-"""
-As of Oct 2024, viral UniProt sequences are not a part of alphafold so can't be handled in the same
-way as the eukaryotic parasites above. If this changes, we have included UniProt proteome
-identifiers in the metadata table that records viruses that infect humans. This table could be read
-in and the proteome IDs added to the PROTEOME_IDS variable at the top of this Snakefile, allowing
-viruses to be processed with the rules used on eukaryotic parasites above.
-
-Until then, we use a different approach to structurally compare viral proteins against human
-proteins. Nomburg et al. 2024 generated a database of viral protein structures for viruses that
-infect Eukaryotes. Since we're only interested in viruses that infect humans, we use the ViralZone
-human viruses table (https://viralzone.expasy.org/678) to filter the Nomburg database to
-human-infecting viruses. We do this by matching NCBI Taxonomy identifiers (note we generated NCBI
-taxonomy identifiers for each of the genome representatives in the ViralZone 678 table, see
-[here](https://github.com/Arcadia-Science/2024-parasite-human-mimics/issues/3)).
-
-After filtering to proteins from viruses that infect humans, we extracted the NCBI accession for
-each protein and retrieved the UniProt accession for those proteins. This step isn't strictly
-necessary, but we wanted to work with viral proteins that had UniProt annotations as these are a
-rich source of metadata (ex. subcellular location, etc.). We then decompress the viral structures
-that fit these criteria and compare them against human structures to identify structural mimics.
-
-Below, "nomburg" refers to the paper that generated the 67k structure predictions for viruses that
-infect Eukaryotes:
-Nomburg, J., Doherty, E.E., Price, N. et al. 
-Birth of protein folds and functions in the virome. Nature 633, 710–717 (2024). 
-https://doi.org/10.1038/s41586-024-07809-y
-"""
-
-rule download_nomburg_supplementary_table:
-    output: xlsx=INPUT_DIRPATH / "41586_2024_7809_MOESM4_ESM.xlsx"
-    conda: "envs/web_apis.yml"
-    shell:
-        """
-        curl -JLo {output.xlsx} https://static-content.springer.com/esm/art%3A10.1038%2Fs41586-024-07809-y/MediaObjects/41586_2024_7809_MOESM4_ESM.xlsx
-        """
-
-
-rule identify_ncbi_ids_for_proteins_from_viruses_that_infect_humans_and_have_structures_in_nomburg:
-    input:
-        nomburg_xlsx=rules.download_nomburg_supplementary_table.output.xlsx,
-        human_viruses_tsv=INPUT_DIRPATH / "viralzone.expasy.org-678.tsv"
-    output: txt=OUTPUT_DIRPATH / "viruses" / "nomburg_human_virus_ncbi_accessions.txt"
-    conda: "envs/tidyverse.yml"
-    shell:
-        """
-        Rscript scripts/identify_ncbi_ids_for_proteins_from_viruses_that_infect_humans_and_have_structures_in_nomburg.R \
-            --nomburg {input.nomburg_xlsx} \
-            --human_viruses {input.human_viruses_tsv} \
-            --output {output.txt}
-        """
-
-
-rule convert_ncbi_ids_to_uniprot_accessions:
-    input: txt=rules.identify_ncbi_ids_for_proteins_from_viruses_that_infect_humans_and_have_structures_in_nomburg.output.txt
-    output: txt=OUTPUT_DIRPATH / "viruses" / "nomburg_human_virus_uniprot_accessions.txt"
-    conda:
-        "envs/web_apis.yml"
-    shell:
-        """
-        python ProteinCartography/map_refseq_ids.py -i {input.txt} -o {output.txt}
-        """
-
-rule fetch_uniprot_metadata_viruses:
-    input: txt = rules.convert_ncbi_ids_to_uniprot_accessions.output.txt
-    output: tsv=OUTPUT_DIRPATH / "viruses" / "nomburg_human_virus_features.tsv"
-    conda:
-        "envs/web_apis.yml"
-    shell:
-        """
-        python ProteinCartography/fetch_uniprot_metadata.py \
-            --input {input.txt} \
-            --output {output.tsv} \
-            --additional-fields {UNIPROT_ADDITIONAL_FIELDS}
-        """
-
-
-rule determine_which_viral_structures_to_compare_against_human:
-    input:
-        nomburg_xlsx=rules.download_nomburg_supplementary_table.output.xlsx,
-        human_viruses_tsv=INPUT_DIRPATH / "viralzone.expasy.org-678.tsv",
-        uniprot_tsv=rules.fetch_uniprot_metadata_viruses.output.tsv
-    output:
-        txt=OUTPUT_DIRPATH / "viruses" / "nomburg_human_virus_filepaths.txt",
-        tsv=OUTPUT_DIRPATH / "viruses" / "nomburg_human_virus_metadata.tsv",
-    conda:
-        "envs/tidyverse.yml"
-    shell:
-        """
-        Rscript scripts/determine_which_viral_structures_to_compare_against_human.R \
-            --nomburg {input.nomburg_xlsx} \
-            --human_viruses {input.human_viruses_tsv} \
-            --output_structure_filepaths {output.txt} \
-            --output_tsv {output.tsv}
-        """
-
-
-rule download_nomburg_eukaryotic_virus_structures:
-    output: zipf=INPUT_DIRPATH / "viral" / "Nomburg_2023_structures.zip"
-    shell:
-        """
-        curl -JLo {output} https://zenodo.org/records/10291581/files/Nomburg_2023_structures.zip?download=1
-        """
-
-
-rule decompress_viral_structures:
-    """
-    Only decompress structures that we want to compare against human structures.
-    """
-    input:
-        zipf=rules.download_nomburg_eukaryotic_virus_structures.output.zipf,
-        txt=rules.determine_which_viral_structures_to_compare_against_human.output.txt
-    output: dest_dir=directory(INPUT_DIRPATH / "viral" / "viral_structures")
-    params: dest_dir = INPUT_DIRPATH / "viral"
-    shell:
-        """
-        cat {input.txt} | tr '\n' '\0' | xargs -0 unzip {input.zipf} -d {params.dest_dir}
-        """
-
-
-rule compare_each_viral_pdb_against_human_pdb:
-    """
-    TER TODO: output like the foldseek server: foldseek easy-search example/d1asha_ example/ result.html tmp --format-mode 3
-    """
-    input:
-        human_protein_structures_dir=rules.decompress_human_proteome_structures_from_alphafold.output.human_protein_structures_dir,
-        pdbs=rules.decompress_viral_structures.output.dest_dir
-    output:
-        tsv=OUTPUT_DIRPATH / "viruses" / "foldseek_raw" / "nomburg_human_viruses.tsv",
-    conda:
-        "envs/foldseek.yml"
-    shell:
-        """
-        foldseek easy-search \
-            {input.pdbs} \
-            {input.human_protein_structures_dir} \
-            {output.tsv} \
-            tmp_foldseek \
-            -e 0.01 \
-            --format-output query,target,qlen,tlen,alnlen,alntmscore,qtmscore,ttmscore,lddt,lddtfull,prob,qcov,tcov,pident,bits,evalue,cigar,qseq,tseq,qstart,qend,tstart,tend,qaln,taln,qca,tca,u,t \
-            --format-mode 4
-        """
-
-rule combine_foldseek_viral_results_with_metadata:
-    input:
-        foldseek_tsv=rules.compare_each_viral_pdb_against_human_pdb.output.tsv,
-        human_tsv=rules.fetch_uniprot_metadata_human.output.tsv,
-        query_tsv=rules.determine_which_viral_structures_to_compare_against_human.output.tsv
-    output: 
-        tsv=OUTPUT_DIRPATH / "viruses" / "foldseek_with_uniprot_metadata" / "nomburg_human_viruses_with_uniprot_metadata.tsv.gz",
-        tsv_filtered=OUTPUT_DIRPATH / "viruses" / "foldseek_with_uniprot_metadata" / "nomburg_human_viruses_with_uniprot_metadata_filtered.tsv",
-    conda: "envs/tidyverse.yml"
-    shell:
-        """
-        Rscript scripts/combine_foldseek_results_with_metadata_viral.R \
-            --input_foldseek_results {input.foldseek_tsv} \
-            --input_human_metadata {input.human_tsv} \
-            --input_query_metadata {input.query_tsv} \
-            --output {output.tsv} \
-            --output_filtered {output.tsv_filtered}
-        """
-
-
-#####################################################
-## Embed proteins in ESM2
-#####################################################
-
-# rule extract_protein_sequences_from_tsv:
-#    """
-#    The rule fetch_uniprot_metadata returns a TSV that includes the protein accession and sequence.
-#    This rule extracts the sequence name and uniprot ID from the TSV file into a FASTA file.
-#    """
-
-
-rule combine_all_proteins:
-    # input:
-    output:
-        faa="outputs/input_proteins/all_proteins.faa.gz",
-    shell:
-        """
-        cat {input} > {output}
-        """
-
-
-rule filter_proteins_by_length:
-    """
-    ESM-2 has a maximum protein length of 1024, so we remove any proteins longer than this.
-    If we kept these proteins, ESM would auto-truncate them at length 1024 which would likely
-    impact our results/interpretation.
-    """
-    input:
-        rules.combine_all_proteins.output.faa,
-    output:
-        faa="outputs/input_proteins/length_filtered_proteins.faa",
-    conda:
-        "envs/seqkit.yml"
-    shell:
-        """
-        seqkit seq --max-len 1024 -o {output.faa} {input}
-        """
-
-
-rule plmutils_embed:
-    """
-    This rule embeds amino acid sequences into the embedding space of a protein language model.
-    For now, plmutils only supports ESM-2.
-    The parameter --layer-ind -1 means to extract the embedding from the last layer of the model.
-    """
-    input:
-        rules.filter_proteins_by_length.output.faa,
-    output:
-        npy="outputs/plmutils/embedded_proteins.npy",
-    conda:
-        "envs/plmutils.yml"
-    shell:
-        """
-        plmutils embed --model-name esm2_t48_3B_UR50D \
-            --layer-ind -1 \
-            --output-filepath {output.npy} \
-            {input}
-        """
-
-
-rule convert_embeddings_to_csv:
-    input:
-        rules.plmutils_embed.output.npy,
-    output:
-        csv="outputs/plmutils/embedded_proteins.csv",
-    conda:
-        "envs/pandas.yml"
-    shell:
-        """
-        python scripts/convert_npy_to_csv.py --npy {input} --csv {output.csv}
-        """
-
-
-rule extract_embedding_rownames:
-    input:
-        rules.filter_proteins_by_length.output.faa,
-    output:
-        txt="outputs/plmutils/embedded_protein_names.txt",
-    conda:
-        "envs/seqkit.yml"
-    shell:
-        """
-        seqkit seq --name --only-id {input} --out-file {output.txt}
-        """
-
 
 ###################################################################
 ## Rule all
@@ -549,6 +296,3 @@ rule all:
     input:
         expand(rules.assess_pdbs_per_proteome.output.tsv, proteome_id=PROTEOME_IDS),
         expand(rules.combine_foldseek_parasite_results_with_uniprot_metadata.output.tsv, proteome_id=PROTEOME_IDS),
-        rules.combine_foldseek_viral_results_with_metadata.output.tsv,
-        #"outputs/plmutils/embedded_proteins.csv",
-        #"outputs/plmutils/embedded_protein_names.txt",
