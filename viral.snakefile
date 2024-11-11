@@ -1,5 +1,5 @@
 """
-This Snakefile compares viral protein structures against proteomes of the virus hosts to identify
+This snakefile compares viral protein structures against proteomes of the virus hosts to identify
 viral structural mimicry. The approach taken in this Snakefile takes advantage of two resources:
 1. [Nomburg et al. Eukaryote-infecting viral protein structures](https://doi.org/10.1038/s41586-024-07809-y).
 2. The [Kyoto Encyclopedia of Genes and Genomes Virus-Host DB](https://www.genome.jp/virushostdb/).  
