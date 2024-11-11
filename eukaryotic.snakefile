@@ -76,7 +76,7 @@ each-parasite-protein-versus-all-human-proteins comparison.
 
 rule download_uniprot_proteome_human:
     output:
-        faa=INPUT_DIRPATH / "uniprot"/ "human"/ "UP000005640_9606.fasta.gz",
+        faa=INPUT_DIRPATH / "uniprot" / "human" / "UP000005640_9606.fasta.gz",
     shell:
         """
         curl -JLo {output.faa} https://ftp.uniprot.org/pub/databases/uniprot/current_release/knowledgebase/reference_proteomes/Eukaryota/UP000005640/UP000005640_9606.fasta.gz
@@ -113,9 +113,10 @@ rule fetch_uniprot_metadata_human:
             --additional-fields {UNIPROT_ADDITIONAL_FIELDS}
         """
 
+
 rule download_human_proteome_structures_from_alphafold:
     output:
-        tar=INPUT_DIRPATH / "uniprot" / "human"/ "UP000005640_9606_HUMAN_v4.tar",
+        tar=INPUT_DIRPATH / "uniprot" / "human" / "UP000005640_9606_HUMAN_v4.tar",
     conda:
         "envs/web_apis.yml"
     shell:
@@ -138,6 +139,7 @@ rule decompress_human_proteome_structures_from_alphafold:
 ###########################################################
 ## Eukaryotic structural comparisons
 ###########################################################
+
 
 rule get_uniprot_ids_from_proteome_id:
     output:
@@ -266,15 +268,23 @@ rule compare_each_parasite_pdb_against_human_pdb:
             --format-mode 4
         """
 
+
 rule combine_foldseek_parasite_results_with_uniprot_metadata:
     input:
         foldseek_tsv=rules.compare_each_parasite_pdb_against_human_pdb.output.tsv,
         human_tsv=rules.fetch_uniprot_metadata_human.output.tsv,
-        query_tsv=rules.fetch_uniprot_metadata_per_proteome.output.tsv
-    output: 
-        tsv=OUTPUT_DIRPATH / "structural_comparison" / "foldseek_with_uniprot_metadata" / "{proteome_id}_with_uniprot_metadata.tsv.gz",
-        tsv_filtered=OUTPUT_DIRPATH / "structural_comparison" / "foldseek_with_uniprot_metadata" / "{proteome_id}_with_uniprot_metadata_filtered.tsv",
-    conda: "envs/tidyverse.yml"
+        query_tsv=rules.fetch_uniprot_metadata_per_proteome.output.tsv,
+    output:
+        tsv=OUTPUT_DIRPATH
+        / "structural_comparison"
+        / "foldseek_with_uniprot_metadata"
+        / "{proteome_id}_with_uniprot_metadata.tsv.gz",
+        tsv_filtered=OUTPUT_DIRPATH
+        / "structural_comparison"
+        / "foldseek_with_uniprot_metadata"
+        / "{proteome_id}_with_uniprot_metadata_filtered.tsv",
+    conda:
+        "envs/tidyverse.yml"
     shell:
         """
         Rscript scripts/combine_foldseek_results_with_uniprot_metadata.R \
@@ -295,4 +305,7 @@ rule all:
     default_target: True
     input:
         expand(rules.assess_pdbs_per_proteome.output.tsv, proteome_id=PROTEOME_IDS),
-        expand(rules.combine_foldseek_parasite_results_with_uniprot_metadata.output.tsv, proteome_id=PROTEOME_IDS),
+        expand(
+            rules.combine_foldseek_parasite_results_with_uniprot_metadata.output.tsv,
+            proteome_id=PROTEOME_IDS,
+        ),
