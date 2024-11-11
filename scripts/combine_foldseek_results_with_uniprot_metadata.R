@@ -10,9 +10,7 @@ option_list <- list(
   make_option(c("--input_query_metadata"), type="character",
               help="Path to query uniprot metadata TSV file."),
   make_option(c("--output"), type="character",
-              help="Path to output TSV file."),
-  make_option(c("--output_filtered"), type="character",
-              help="Path to output TSV file with *TMScore > 0.7.")
+              help="Path to output TSV file.")
 )
 
 args <- parse_args(OptionParser(option_list=option_list))
@@ -39,12 +37,6 @@ foldseek_results <- foldseek_results %>%
   dplyr::relocate(all_of(c("human_gene_names_primary", "human_function_cc",
                            "human_tissue_specificity", "human_subcellular_location_cc")),
                   .before = lddt) %>%
-  arrange(desc(alntmscore))
+  arrange(desc(evalue))
 
 write_tsv(foldseek_results, args$output)
-
-foldseek_results_top_matches <- foldseek_results %>%
-  group_by(query) %>%
-  filter(qtmscore > 0.7 | alntmscore > 0.7 | ttmscore > 0.7)
-
-write_tsv(foldseek_results_top_matches, args$output_filtered)
