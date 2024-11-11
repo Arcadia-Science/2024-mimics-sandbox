@@ -35,12 +35,12 @@ def get_uniprot_ids_from_proteome(proteome_id):
         response.raise_for_status()
 
         # The response content is a TSV with a header 'Entry'
-        lines = response.text.strip().split('\n')
+        lines = response.text.strip().split("\n")
         if len(lines) <= 1:
             break  # No more entries
 
         # Skip the "Entry" header whenever it is present
-        if lines[0] == 'Entry':
+        if lines[0] == "Entry":
             data_lines = lines[1:]
         else:
             data_lines = lines
@@ -49,19 +49,22 @@ def get_uniprot_ids_from_proteome(proteome_id):
 
         # Check for a 'next' page in the response headers
         links = response.links
-        if 'next' in links:
-            next_link = links['next']['url']
+        if "next" in links:
+            next_link = links["next"]["url"]
         else:
             break
 
     return uniprot_ids
 
+
 def main():
-    parser = argparse.ArgumentParser(description='Retrieve UniProt IDs from a proteome ID.')
-    parser.add_argument('--uniprot-proteome-id',
-                        required=True,
-                        help='UniProt proteome identifier (e.g., UP000006826)')
-    parser.add_argument('--output', required=True, help='Output file to write the UniProt IDs')
+    parser = argparse.ArgumentParser(description="Retrieve UniProt IDs from a proteome ID.")
+    parser.add_argument(
+        "--uniprot-proteome-id",
+        required=True,
+        help="UniProt proteome identifier (e.g., UP000006826)",
+    )
+    parser.add_argument("--output", required=True, help="Output file to write the UniProt IDs")
 
     args = parser.parse_args()
 
@@ -70,11 +73,12 @@ def main():
 
     uniprot_ids = get_uniprot_ids_from_proteome(proteome_id)
 
-    with open(output_file, 'w') as f:
+    with open(output_file, "w") as f:
         for accession in uniprot_ids:
             f.write(f"{accession}\n")
 
     print(f"Retrieved {len(uniprot_ids)} UniProt IDs and saved to {output_file}")
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()
