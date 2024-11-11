@@ -1,0 +1,7 @@
+﻿organism,species,taxon_id,uniprot_proteome_id
+human,Homo sapiens,9606,UP000005640
+mouse,Mus musculus,10090,UP000000589
+rat,Rattus norvegicus,10116,UP000002494
+rhesus_macaque,Macaca mulatta,9544,UP000006718
+chimpanzee,Pan troglodytes,9598,UP000002277
+crabeating_macaque,Macaca fascicularis,9541,UP000233100
