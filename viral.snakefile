@@ -1,3 +1,27 @@
+"""
+This Snakefile compares viral protein structures against proteomes of the virus hosts to identify
+viral structural mimicry. The approach taken in this Snakefile takes advantage of two resources:
+1. [Nomburg et al. Eukaryote-infecting viral protein structures](https://doi.org/10.1038/s41586-024-07809-y).
+2. The [Kyoto Encyclopedia of Genes and Genomes Virus-Host DB](https://www.genome.jp/virushostdb/).  
+
+The KEGG Virus-Host DB defines virus-host pairs for which we have evidence that the virus infects a
+specific host. We use these relationships and the
+[NCBI taxonomic identifiers](https://www.ncbi.nlm.nih.gov/taxonomy) in this resource to identify
+viral protein structures folded by Nomburg et al. We then compare these structures against the
+defined host proteomes.
+
+This is different than the strategy used in the eukaryote parasite mimicry detection snakefile. As
+of Oct 2024, viral UniProt sequences are not a part of alphafold so can't be handled in the same way
+as the eukaryotic parasites above. If this changes, we could take the same strategy as is used in
+the other snakefile. 
+
+Below, "nomburg" refers to the paper that generated the 67k structure predictions for viruses that
+infect Eukaryotes:
+Nomburg, J., Doherty, E.E., Price, N. et al. 
+Birth of protein folds and functions in the virome. Nature 633, 710–717 (2024). 
+https://doi.org/10.1038/s41586-024-07809-y
+"""
+
 from pathlib import Path
 import pandas as pd
 
@@ -8,41 +32,17 @@ INPUT_DIRPATH = Path("inputs")
 UNIPROT_ADDITIONAL_FIELDS = "ft_act_site,cc_activity_regulation,ft_binding,cc_catalytic_activity,cc_cofactor,ft_dna_bind,ec,cc_function,kinetics,cc_pathway,ph_dependence,redox_potential,rhea,ft_site,temp_dependence,fragment,organelle,mass,cc_rna_editing,reviewed,cc_interaction,cc_subunit,cc_developmental_stage,cc_induction,cc_tissue_specificity,go_id,cc_allergen,cc_biotechnology,cc_disruption_phenotype,cc_disease,ft_mutagen,cc_pharmaceutical,cc_toxic_dose,ft_intramem,cc_subcellular_location,ft_topo_dom,ft_transmem,ft_chain,ft_crosslnk,ft_disulfid,ft_carbohyd,ft_init_met,ft_lipid,ft_mod_res,ft_peptide,cc_ptm,ft_propep,ft_signal,ft_transit,ft_coiled,ft_compbias,cc_domain,ft_domain,ft_motif,protein_families,ft_region,ft_repeat,ft_zn_fing,lit_pubmed_id"
 
 # Read in host metadata, which we'll use to link the organism name to identifiers like taxid and
-# uniprot proteome id. Setting the index allows us to use the organism name as a look up to find 
+# uniprot proteome id. Setting the index allows us to use the organism name as a look up to find
 # the correct value for other metadata.
-host_metadata=pd.read_csv("inputs/viral/host-information.csv", header=0).set_index(["organism"], drop=False)
-HOST_ORGANISMS=host_metadata["organism"].unique().tolist()
+host_metadata = pd.read_csv("inputs/viral/host-information.csv", header=0).set_index(
+    ["organism"], drop=False
+)
+HOST_ORGANISMS = host_metadata["organism"].unique().tolist()
 
-"""
-As of Oct 2024, viral UniProt sequences are not a part of alphafold so can't be handled in the same
-way as the eukaryotic parasites above. If this changes, we have included UniProt proteome
-identifiers in the metadata table that records viruses that infect humans. This table could be read
-in and the proteome IDs added to the PROTEOME_IDS variable at the top of this Snakefile, allowing
-viruses to be processed with the rules used on eukaryotic parasites above.
-
-Until then, we use a different approach to structurally compare viral proteins against human
-proteins. Nomburg et al. 2024 generated a database of viral protein structures for viruses that
-infect Eukaryotes. Since we're only interested in viruses that infect humans, we use the ViralZone
-human viruses table (https://viralzone.expasy.org/678) to filter the Nomburg database to
-human-infecting viruses. We do this by matching NCBI Taxonomy identifiers (note we generated NCBI
-taxonomy identifiers for each of the genome representatives in the ViralZone 678 table, see
-[here](https://github.com/Arcadia-Science/2024-parasite-human-mimics/issues/3)).
-
-After filtering to proteins from viruses that infect humans, we extracted the NCBI accession for
-each protein and retrieved the UniProt accession for those proteins. This step isn't strictly
-necessary, but we wanted to work with viral proteins that had UniProt annotations as these are a
-rich source of metadata (ex. subcellular location, etc.). We then decompress the viral structures
-that fit these criteria and compare them against human structures to identify structural mimics.
-
-Below, "nomburg" refers to the paper that generated the 67k structure predictions for viruses that
-infect Eukaryotes:
-Nomburg, J., Doherty, E.E., Price, N. et al. 
-Birth of protein folds and functions in the virome. Nature 633, 710–717 (2024). 
-https://doi.org/10.1038/s41586-024-07809-y
-"""
 ###########################################################
 ## Download ProteinCartography scripts
 ###########################################################
+
 
 rule download_proteincartography_scripts:
     """
@@ -88,20 +88,24 @@ rule download_proteincartography_scripts:
         curl -JLo {output.mocks} https://raw.githubusercontent.com/Arcadia-Science/ProteinCartography/{params.commit}/ProteinCartography/tests/mocks.py
         """
 
+
 ##############################################################################
 ## Get host-specific viral structures
 ##############################################################################
+
 
 rule download_kegg_virushostdb:
     """
     Downloaded 2024-10-07 version
     MD5sum 93a78881a8c2b9d01dcdddbb564276fd
     """
-    output: tsv=INPUT_DIRPATH / "viral" / "virushostdb.tsv"
+    output:
+        tsv=INPUT_DIRPATH / "viral" / "virushostdb.tsv",
     shell:
         """
         curl -JLo {output.tsv} https://www.genome.jp/ftp/db/virushostdb/virushostdb.tsv
         """
+
 
 rule download_ncbi_taxdump_information:
     """
@@ -109,13 +113,15 @@ rule download_ncbi_taxdump_information:
     """
     output:
         tar=INPUT_DIRPATH / "taxdump" / "taxdump.tar.gz",
-        dmp=INPUT_DIRPATH / "taxdump" / "nodes.dmp"
-    params: taxdump_dirpath=INPUT_DIRPATH / "taxdump"
+        dmp=INPUT_DIRPATH / "taxdump" / "nodes.dmp",
+    params:
+        taxdump_dirpath=INPUT_DIRPATH / "taxdump",
     shell:
         """
         curl -JLo {output.tar} https://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdump.tar.gz && \
             tar xf {output.tar} -C {params.taxdump_dirpath}
         """
+
 
 rule retrieve_ncbi_taxonomy_lineages_for_viral_taxids:
     """
@@ -124,10 +130,13 @@ rule retrieve_ncbi_taxonomy_lineages_for_viral_taxids:
     """
     input:
         tsv=rules.download_kegg_virushostdb.output.tsv,
-        dmp=rules.download_ncbi_taxdump_information.output.dmp
-    output: tsv=OUTPUT_DIRPATH / "viruses" / "viral_lineages.tsv"
-    conda: "envs/taxonkit.yml"
-    params: taxdump_dirpath=INPUT_DIRPATH / "taxdump"
+        dmp=rules.download_ncbi_taxdump_information.output.dmp,
+    output:
+        tsv=OUTPUT_DIRPATH / "viruses" / "viral_lineages.tsv",
+    conda:
+        "envs/taxonkit.yml"
+    params:
+        taxdump_dirpath=INPUT_DIRPATH / "taxdump",
     shell:
         """
         taxonkit lineage \
@@ -138,23 +147,28 @@ rule retrieve_ncbi_taxonomy_lineages_for_viral_taxids:
             {input.tsv}
         """
 
+
 rule download_nomburg_supplementary_table:
-    output: xlsx=INPUT_DIRPATH / "41586_2024_7809_MOESM4_ESM.xlsx"
-    conda: "envs/web_apis.yml"
+    output:
+        xlsx=INPUT_DIRPATH / "41586_2024_7809_MOESM4_ESM.xlsx",
+    conda:
+        "envs/web_apis.yml"
     shell:
         """
         curl -JLo {output.xlsx} https://static-content.springer.com/esm/art%3A10.1038%2Fs41586-024-07809-y/MediaObjects/41586_2024_7809_MOESM4_ESM.xlsx
         """
 
+
 rule filter_nomburg_viruses_by_host:
     input:
         csv=INPUT_DIRPATH / "viral" / "host-information.csv",
         xlsx=rules.download_nomburg_supplementary_table.output.xlsx,
-        tsv=rules.retrieve_ncbi_taxonomy_lineages_for_viral_taxids.output.tsv
+        tsv=rules.retrieve_ncbi_taxonomy_lineages_for_viral_taxids.output.tsv,
     output:
         tsv=OUTPUT_DIRPATH / "viral" / "{host_organism}" / "viral_structure_metadata.tsv",
         txt=OUTPUT_DIRPATH / "viral" / "{host_organism}" / "viral_structure_paths.txt",
-    conda: "envs/tidyverse.yml"
+    conda:
+        "envs/tidyverse.yml"
     shell:
         """
         Rscript scripts/filter_nomburg_viruses_by_host.R \
@@ -168,7 +182,8 @@ rule filter_nomburg_viruses_by_host:
 
 
 rule download_nomburg_eukaryotic_virus_structures:
-    output: zipf=INPUT_DIRPATH / "viral" / "Nomburg_2023_structures.zip"
+    output:
+        zipf=INPUT_DIRPATH / "viral" / "Nomburg_2023_structures.zip",
     shell:
         """
         curl -JLo {output} https://zenodo.org/records/10291581/files/Nomburg_2023_structures.zip?download=1
@@ -181,8 +196,9 @@ rule decompress_viral_structures:
     """
     input:
         zipf=rules.download_nomburg_eukaryotic_virus_structures.output.zipf,
-        txt=rules.filter_nomburg_viruses_by_host.output.txt
-    output: dest_dir=directory(OUTPUT_DIRPATH / "viral" / "{host_organism}" / "viral_structures")
+        txt=rules.filter_nomburg_viruses_by_host.output.txt,
+    output:
+        dest_dir=directory(OUTPUT_DIRPATH / "viral" / "{host_organism}" / "viral_structures"),
     shell:
         """
         python scripts/decompress_viral_structures.py \
@@ -210,14 +226,19 @@ rule assess_pdbs_viral:
             --output {output.tsv}
         """
 
+
 #####################################################################
 ## Download host proteome structures
 #####################################################################
 
+
 rule get_uniprot_ids_from_host_proteome_id:
     output:
         txt=OUTPUT_DIRPATH / "viral" / "{host_organism}" / "host_proteome_protein_identifiers.txt",
-    params: uniprot_proteome_id=lambda wildcards: host_metadata.loc[wildcards.host_organism, "uniprot_proteome_id"],
+    params:
+        uniprot_proteome_id=lambda wildcards: host_metadata.loc[
+            wildcards.host_organism, "uniprot_proteome_id"
+        ],
     conda:
         "envs/web_apis.yml"
     shell:
@@ -298,7 +319,7 @@ rule compare_each_viral_pdb_against_all_host_pdbs:
     """
     input:
         protein_structures_dir=rules.download_host_pdbs.output.protein_structures_dir,
-        pdbs=rules.decompress_viral_structures.output.dest_dir
+        pdbs=rules.decompress_viral_structures.output.dest_dir,
     output:
         tsv=OUTPUT_DIRPATH / "viral" / "{host_organism}" / "nomburg_virus_matches.tsv",
     conda:
@@ -315,15 +336,18 @@ rule compare_each_viral_pdb_against_all_host_pdbs:
             --format-mode 4
         """
 
+
 rule combine_foldseek_results_with_metadata_viral:
     input:
         foldseek_tsv=rules.compare_each_viral_pdb_against_all_host_pdbs.output.tsv,
         host_metadata_tsv=rules.fetch_uniprot_metadata_per_host_proteome.output.tsv,
         host_lddt_tsv=rules.assess_pdbs_per_host_proteome.output.tsv,
         query_metadata_tsv=rules.filter_nomburg_viruses_by_host.output.tsv,
-        query_lddt_tsv=rules.assess_pdbs_viral.output.tsv
-    output: tsv=OUTPUT_DIRPATH / "viral" / "{host_organism}" / "nomburg_virus_matches_with_metadata.tsv"
-    conda: "envs/tidyverse.yml"
+        query_lddt_tsv=rules.assess_pdbs_viral.output.tsv,
+    output:
+        tsv=OUTPUT_DIRPATH / "viral" / "{host_organism}" / "nomburg_virus_matches_with_metadata.tsv",
+    conda:
+        "envs/tidyverse.yml"
     shell:
         """
         Rscript scripts/combine_foldseek_results_with_metadata_viral.R \
@@ -335,12 +359,17 @@ rule combine_foldseek_results_with_metadata_viral:
             --output {output.tsv}
         """
 
+
 rule filter_foldseek_viral_results_criteria1:
     input:
-        tsv=rules.combine_foldseek_results_with_metadata_viral.output.tsv
+        tsv=rules.combine_foldseek_results_with_metadata_viral.output.tsv,
     output:
-        csv=OUTPUT_DIRPATH / "viral" / "{host_organism}" / "nomburg_virus_matches_with_metadata_filtered_criteria1.csv" 
-    conda: "envs/tidyverse.yml"
+        csv=OUTPUT_DIRPATH
+        / "viral"
+        / "{host_organism}"
+        / "nomburg_virus_matches_with_metadata_filtered_criteria1.csv",
+    conda:
+        "envs/tidyverse.yml"
     shell:
         """
         Rscript scripts/filter_foldseek_viral_results_criteria1.R \
@@ -348,17 +377,25 @@ rule filter_foldseek_viral_results_criteria1:
             --output {output.csv}
         """
 
+
 rule combine_all_foldseek_results:
-    input: csvs=expand(rules.filter_foldseek_viral_results_criteria1.output.csv, host_organism=HOST_ORGANISMS)
-    output: csv=OUTPUT_DIRPATH / "viral" / "all_nomburg_virus_matches_with_metadata_filtered_criteria1.csv"
-    conda: "envs/csvtk.yml"
+    input:
+        csvs=expand(
+            rules.filter_foldseek_viral_results_criteria1.output.csv, host_organism=HOST_ORGANISMS
+        ),
+    output:
+        csv=OUTPUT_DIRPATH
+        / "viral"
+        / "all_nomburg_virus_matches_with_metadata_filtered_criteria1.csv",
+    conda:
+        "envs/csvtk.yml"
     shell:
         """
         csvtk concat --out-file {output.csv}  {input.csvs}
         """
 
-rule all:    
+
+rule all:
     default_target: True
     input:
-        #expand(rules.filter_foldseek_viral_results_criteria1.output.csv, host_organism=HOST_ORGANISMS)
-        rules.combine_all_foldseek_results.output.csv
+        rules.combine_all_foldseek_results.output.csv,
