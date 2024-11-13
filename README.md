@@ -52,7 +52,12 @@ TODO: add a thorough description of how the tool works and should be used. Consi
 
 ### Compute Specifications
 
-TODO: Describe what compute resources were used to run the analysis. For example, you could list the operating system, number of cores, RAM, and storage space.
+#### `eukaryotic.snakefile`
+
+We ran this snakefile on a MacBook Pro, 2021 (Apple M1 Max chip, 64 GB RAM, 10 cores).
+We used up to 6 cores to run the snakefile.
+The complete snakefile ran in ~4 hours.
+The input and output files take up approximately 60GB of space.  
 
 ## Contributing
 
