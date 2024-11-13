@@ -8,7 +8,7 @@ INPUT_DIRPATH = Path("inputs")
 UNIPROT_ADDITIONAL_FIELDS = "ft_act_site,cc_activity_regulation,ft_binding,cc_catalytic_activity,cc_cofactor,ft_dna_bind,ec,cc_function,kinetics,cc_pathway,ph_dependence,redox_potential,rhea,ft_site,temp_dependence,fragment,organelle,mass,cc_rna_editing,reviewed,cc_interaction,cc_subunit,cc_developmental_stage,cc_induction,cc_tissue_specificity,go_id,cc_allergen,cc_biotechnology,cc_disruption_phenotype,cc_disease,ft_mutagen,cc_pharmaceutical,cc_toxic_dose,ft_intramem,cc_subcellular_location,ft_topo_dom,ft_transmem,ft_chain,ft_crosslnk,ft_disulfid,ft_carbohyd,ft_init_met,ft_lipid,ft_mod_res,ft_peptide,cc_ptm,ft_propep,ft_signal,ft_transit,ft_coiled,ft_compbias,cc_domain,ft_domain,ft_motif,protein_families,ft_region,ft_repeat,ft_zn_fing,lit_pubmed_id"
 
 proteome_metadata = pd.read_csv(
-    "inputs/2024_mimics_uniprot_reference_proteomes_human_long_association.tsv", header=0, sep="\t"
+    INPUT_DIRPATH / "2024_mimics_uniprot_reference_proteomes_human_long_association.tsv", header=0, sep="\t"
 )
 PROTEOME_IDS = proteome_metadata["proteome_id"].unique().tolist()
 
