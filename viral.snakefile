@@ -54,6 +54,10 @@ rule download_proteincartography_scripts:
     
     Note the envs that these scripts require (envs/plotting.yml, envs/web_apis.yml) need to already
     be present in the repo so they are duplicated.
+
+    An alternative to this approach would be to use
+    [Git submodule](https://git-scm.com/book/en/v2/Git-Tools-Submodules). We may update to this
+    approach in the future.
     """
     output:
         # Create an empty file to use a pointer for this rule runnign successfully.
@@ -132,7 +136,7 @@ rule retrieve_ncbi_taxonomy_lineages_for_viral_taxids:
         tsv=rules.download_kegg_virushostdb.output.tsv,
         dmp=rules.download_ncbi_taxdump_information.output.dmp,
     output:
-        tsv=OUTPUT_DIRPATH / "viruses" / "viral_lineages.tsv",
+        tsv=OUTPUT_DIRPATH / "viral" / "viral_lineages.tsv",
     conda:
         "envs/taxonkit.yml"
     params:
