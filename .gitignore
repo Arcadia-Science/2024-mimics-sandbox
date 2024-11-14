@@ -1,5 +1,7 @@
 # packages installed in editable mode
 envs/src/**
+ProteinCartography/
+scripts/ProteinCartography_scripts_downloaded.txt
 
 # Snakemake-related folders and files
 .snakemake/
@@ -33,6 +35,7 @@ var/
 *.egg-info/
 .installed.cfg
 *.egg
+.Rhistory
 
 # Installer logs
 pip-log.txt
