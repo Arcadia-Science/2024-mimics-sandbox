@@ -52,12 +52,21 @@ TODO: add a thorough description of how the tool works and should be used. Consi
 
 ### Compute Specifications
 
-#### `eukaryotic.snakefile`
+#### [`eukaryotic.snakefile`](./eukaryotic.snakefile)
 
 We ran this snakefile on a MacBook Pro, 2021 (Apple M1 Max chip, 64 GB RAM, 10 cores).
 We used up to 6 cores to run the snakefile.
 The complete snakefile ran in ~4 hours.
 The input and output files take up approximately 60GB of space.  
+
+#### [`il17-example.snakefile`](./il17-example.snakefile)
+
+We ran this snakefile on an AWS EC2 instance type `g4dn.2xlarge` running AMI Deep Learning Base OSS Nvidia Driver GPU AMI (Ubuntu 20.04) 20240122 (AMI ID ami-07eb000b3340966b0).
+We used a single core to run the snakefile
+The pipeline runs in aabout an hour.
+The input and and output files take approximately 10 GB of space.
+The tool plm-utils can use GPUs so compute times will be substantially faster (hours vs. days) on a GPU than a CPU.
+We did not test the pipeline on a CPU so there is a chance it will only work on a GPU.
 
 ## Contributing
 
