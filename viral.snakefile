@@ -8,12 +8,15 @@ The KEGG Virus-Host DB defines virus-host pairs for which we have evidence that 
 specific host. We use these relationships and the
 [NCBI taxonomic identifiers](https://www.ncbi.nlm.nih.gov/taxonomy) in this resource to identify
 viral protein structures folded by Nomburg et al. We then compare these structures against the
-defined host proteomes.
+defined host proteomes. We chose to search for structural mimicry in viruses that infect humans,
+mouse, rat, and three non-human primates. We think that if we identify the instances of mimicry of
+the same gene or pathway in multiple host-viruses pairs, this may be a strong signal that the
+protein can be used to change host physiology.
 
-This is different than the strategy used in the eukaryote parasite mimicry detection snakefile. As
-of Oct 2024, viral UniProt sequences are not a part of alphafold so can't be handled in the same way
-as the eukaryotic parasites above. If this changes, we could take the same strategy as is used in
-the other snakefile. 
+The approach in this snakefile is different than the strategy used in the eukaryote parasite mimicry
+detection snakefile. As of Oct 2024, viral UniProt sequences are not a part of alphafold so can't be
+handled in the same way as the eukaryotic parasites above. If this changes, we could take the same
+strategy as is used in the other snakefile. 
 
 Below, "nomburg" refers to the paper that generated the 67k structure predictions for viruses that
 infect Eukaryotes:
