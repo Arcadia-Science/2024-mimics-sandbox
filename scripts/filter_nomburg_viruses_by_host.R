@@ -20,10 +20,6 @@ option_list <- list(
 
 args <- parse_args(OptionParser(option_list=option_list))
 
-# HOST_TAX_ID <- read_csv("inputs/viral/host-information.csv") %>%
-#    filter(organism == "human") %>%
-#    pull(taxon_id)
-
 HOST_TAX_ID <- read_csv(args$host_metadata) %>%
   filter(organism == args$host_organism) %>%
   pull(taxon_id)

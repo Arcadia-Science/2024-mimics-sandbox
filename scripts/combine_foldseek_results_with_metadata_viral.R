@@ -19,27 +19,21 @@ option_list <- list(
 
 args <- parse_args(OptionParser(option_list=option_list))
 
-#foldseek_results <- read_tsv("outputs/viral/rat/nomburg_virus_matches.tsv") %>%
 foldseek_results <- read_tsv(args$input_foldseek_results, show_col_types = FALSE) %>%
   mutate(query = str_remove(string = query, pattern = "\\.pdb"),
          target = str_remove(string = target, pattern = "\\.pdb"))
 
-
-#host_pdb_lddt <- read_tsv("outputs/viral/rat/host_proteome_pdb_structure_quality.tsv") %>%
 host_pdb_lddt <- read_tsv(args$input_host_lddt, show_col_types = FALSE) %>%
   select(protid, pdb_plddt = pdb_confidence)
 
-#host_uniprot_metadata <- read_tsv("outputs/viral/rat/host_proteome_protein_features.tsv") %>%
 host_uniprot_metadata <- read_tsv(args$input_host_metadata, show_col_types = FALSE) %>%
   clean_names() %>%
   left_join(host_pdb_lddt, by = c("protid")) %>%
   rename_with(.cols = everything(), function(x){paste0("host_", x)})
 
-#query_pdb_lddt <- read_tsv("outputs/viral/rat/viral_structure_quality.tsv") %>%
 query_pdb_lddt <- read_tsv(args$input_query_lddt, show_col_types = FALSE) %>%
   select(protid, pdb_plddt = pdb_confidence)
 
-#query_metadata <- read_tsv("outputs/viral/rat/viral_structure_metadata.tsv") %>%
 query_metadata <- read_tsv(args$input_query_metadata, show_col_types = FALSE) %>%
   clean_names() %>%
   left_join(query_pdb_lddt, by = c("nomburg_protein_name" = "protid")) %>%
