@@ -246,8 +246,10 @@ rule download_uniprot_proteome_canonical_sequence_ids:
     canonical host protein for comparisons, as these are more metadata-complete and facilitate a
     cleaner analysis.
     """
-    output: txt=OUTPUT_DIRPATH / "viral" / "{host_organism}" / "host_proteome_canonical_protein_ids.txt"
-    conda: "envs/seqkit.yml"
+    output:
+        txt=OUTPUT_DIRPATH / "viral" / "{host_organism}" / "host_proteome_canonical_protein_ids.txt",
+    conda:
+        "envs/seqkit.yml"
     params:
         uniprot_proteome_id=lambda wildcards: host_metadata.loc[
             wildcards.host_organism, "uniprot_proteome_id"
@@ -258,6 +260,7 @@ rule download_uniprot_proteome_canonical_sequence_ids:
         curl -JL https://ftp.uniprot.org/pub/databases/uniprot/current_release/knowledgebase/reference_proteomes/Eukaryota/{params.uniprot_proteome_id}/{params.uniprot_proteome_id}_{params.taxon_id}.fasta.gz | \
             seqkit seq --only-id --name | cut -d'|' -f2 > {output.txt}
         """
+
 
 rule fetch_uniprot_metadata_per_host_proteome:
     """
@@ -277,6 +280,7 @@ rule fetch_uniprot_metadata_per_host_proteome:
             --output {output.tsv} \
             --additional-fields {UNIPROT_ADDITIONAL_FIELDS} 
         """
+
 
 rule download_host_pdbs:
     """
