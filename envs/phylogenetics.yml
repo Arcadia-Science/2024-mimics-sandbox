@@ -1,0 +1,10 @@
+channels:
+   - conda-forge
+   - bioconda
+   - defaults
+dependencies:
+   - r-ape=5.8
+   - r-phytools=2.3_0
+   - r-phylolm=2.6.5
+   - r-optparse=1.7.5
+   - r-tidyverse=2.0.0
