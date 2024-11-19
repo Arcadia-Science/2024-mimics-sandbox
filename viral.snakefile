@@ -235,7 +235,7 @@ rule assess_pdbs_viral:
 
 
 #####################################################################
-## Download host proteome structures
+## Download host proteome structures & metadata
 #####################################################################
 
 
@@ -318,6 +318,11 @@ rule assess_pdbs_per_host_proteome:
             --input  {input.protein_structures_dir} \
             --output {output.tsv}
         """
+
+
+#####################################################################
+## Do structural comparisons between viral proteins and host proteins
+#####################################################################
 
 
 rule compare_each_viral_pdb_against_all_host_pdbs:
