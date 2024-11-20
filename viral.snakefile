@@ -414,7 +414,7 @@ rule detect_dual_mimicry:
         png=OUTPUT_DIRPATH
         / "viral"
         / "{host_organism}"
-        / "dual_mimicry_cooccurrence_taxonomic_plot.png.",
+        / "dual_mimicry_cooccurrence_taxonomic_plot.png",
         csv1=OUTPUT_DIRPATH / "viral" / "{host_organism}" / "dual_mimicry_cooccurrence.csv",
         csv2=OUTPUT_DIRPATH / "viral" / "{host_organism}" / "dual_mimicry_dual_domain.csv",
     conda:
