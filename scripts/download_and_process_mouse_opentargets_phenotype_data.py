@@ -22,37 +22,36 @@ from pyspark.sql import functions as F
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Process mouse phenotype data.')
+    parser = argparse.ArgumentParser(description="Process mouse phenotype data.")
     parser.add_argument(
-        '--download-dir',
-        default='mousePhenotypes',
-        help='Output directory for the downloaded file.'
+        "--download-dir",
+        default="mousePhenotypes",
+        help="Output directory for the downloaded file.",
     )
-    parser.add_argument('--output', required=True, help='Path to the output CSV file.')
+    parser.add_argument("--output", required=True, help="Path to the output CSV file.")
     args = parser.parse_args()
 
     download_dir = args.download_dir
     os.makedirs(download_dir, exist_ok=True)
 
-
-    root = 'https://ftp.ebi.ac.uk/pub/databases/opentargets/platform/latest/output/etl/parquet/'
-    file = 'mousePhenotypes/part-00000-41f2eb84-c5e3-4d67-b3b7-4bd87c1e23db-c000.snappy.parquet'
+    root = "https://ftp.ebi.ac.uk/pub/databases/opentargets/platform/latest/output/etl/parquet/"
+    file = "mousePhenotypes/part-00000-41f2eb84-c5e3-4d67-b3b7-4bd87c1e23db-c000.snappy.parquet"
     url = root + file
-    local_filename = os.path.join(download_dir, 'mouse_phenotypes.parquet')
+    local_filename = os.path.join(download_dir, "mouse_phenotypes.parquet")
 
     if not os.path.exists(local_filename):
-        print(f'Downloading {url} to {local_filename}')
+        print(f"Downloading {url} to {local_filename}")
         try:
             with requests.get(url, stream=True) as r:
                 r.raise_for_status()
-                with open(local_filename, 'wb') as f:
+                with open(local_filename, "wb") as f:
                     for chunk in r.iter_content(chunk_size=8192):
                         f.write(chunk)
         except requests.exceptions.RequestException as e:
-            print(f'Error downloading file: {e}')
+            print(f"Error downloading file: {e}")
             sys.exit(1)
     else:
-        print(f'{local_filename} already exists. Skipping download.')
+        print(f"{local_filename} already exists. Skipping download.")
 
     # Initialize Spark session
     spark = SparkSession.builder.appName("LoadParquetFile").getOrCreate()
@@ -66,14 +65,16 @@ def main():
     )
 
     # Explode `modelPhenotypeClasses` to access each individual row
-    final_mouse = aggregated_mouse.withColumn("exploded_phenotype",
-                                              F.explode_outer("modelPhenotypeClasses"))
+    final_mouse = aggregated_mouse.withColumn(
+        "exploded_phenotype", F.explode_outer("modelPhenotypeClasses")
+    )
 
     # Extract only the `label` from each row in `modelPhenotypeClasses`
     final_mouse = final_mouse.withColumn(
         "phenotype_label",
-        F.when(F.col("exploded_phenotype").isNotNull(),
-        F.col("exploded_phenotype.label")).otherwise(None)
+        F.when(
+            F.col("exploded_phenotype").isNotNull(), F.col("exploded_phenotype.label")
+        ).otherwise(None),
     )
 
     # Collect unique phenotype labels into a new list column `mouse_phenotype`
@@ -86,5 +87,6 @@ def main():
     final_mouse_pd = final_mouse.toPandas()
     final_mouse_pd.to_csv(args.output, index=False)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()

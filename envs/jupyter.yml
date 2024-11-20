@@ -1,0 +1,12 @@
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - jupyter=1.0.0
+  - matplotlib=3.9.2
+  - pandas=2.2.3
+  - pip=23.2.1
+  - upsetplot=0.9.0
+  - pip:
+      - matplotlib-venn==1.1.1 
