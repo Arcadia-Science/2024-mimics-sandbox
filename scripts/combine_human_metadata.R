@@ -22,7 +22,7 @@ args <- parse_args(OptionParser(option_list=option_list))
 
 # Define sets of key words for protein location ---------------------------
 # Also create a regular expression pattern that includes all words
-extracellular_keywords = c('extracellular', 'secreted', 'cell surface',
+extracellular_keywords <- c('extracellular', 'secreted', 'cell surface',
                            'pericellular', 'secretory vesicle membrane',
                            'cytoplasmic vesicle, secretory vesicle membrane',
                            'synaptic vesicle membrane')
@@ -32,13 +32,18 @@ molecular_function_keywords <- c("receptor", "extracellular", "secreted",
                                  "cytokine", "neuropeptide", "peptide")
 molecular_function_pattern <- paste(molecular_function_keywords, collapse = '|')
 
-immune_keywords = c("innate immune response", "immune response",
-                    "adaptive immune response", "cytokine signaling",
-                    "antigen presentation", "t-cell receptor", "b-cell",
-                    "nk-cell", "monocyte", "neutrophil", "macrophage",
-                    "plasma cell", "dendritic cell", "lymphoid tissue",
-                    "spleen", "thymus")
-immune_keywords_pattern <- paste(immune_keywords, collapse = '|')
+immune_expression_keywords <- c("innate immune response", "immune response",
+                                "adaptive immune response", "cytokine signaling",
+                                "antigen presentation", "t-cell receptor", "b-cell",
+                                "nk-cell", "monocyte", "neutrophil", "macrophage",
+                                "plasma cell", "dendritic cell", "lymphoid tissue",
+                                "spleen", "thymus")
+immune_keywords_pattern <- paste(immune_expression_keywords, collapse = '|')
+
+# Note that "immunity" will capture innate immunity, adaptive immunity, and
+# immunity
+biological_process_keywords <- c("inflammatory response", "immunity")
+biological_process_pattern <- paste(biological_process_keywords, collapse = '|')
 
 # Read in metadata files and combine --------------------------------------
 
@@ -64,7 +69,8 @@ metadata <- uniprot %>%
     c(uniprot_subcellular_location_cc, proteinatlas_secretome_location,
       proteinatlas_molecular_function, proteinatlas_blood_expression_cluster,
       proteinatlas_tissue_expression_cluster,
-      proteinatlas_single_cell_expression_cluster),
+      proteinatlas_single_cell_expression_cluster,
+      proteinatlas_biological_process),
     tolower))
 
 # process metadata to pull out information of interest --------------------
@@ -86,13 +92,20 @@ metadata <- metadata %>%
 # immune-relevant cells.
 metadata <- metadata %>%
   mutate(
-    immune_expression = if_else(
+    immune_involvement = if_else(
       str_detect(proteinatlas_blood_expression_cluster, immune_keywords_pattern) |
         str_detect(proteinatlas_tissue_expression_cluster, immune_keywords_pattern) |
-        str_detect(proteinatlas_single_cell_expression_cluster, immune_keywords_pattern),
-      'immune expression', 'no immune expression')
+        str_detect(proteinatlas_single_cell_expression_cluster, immune_keywords_pattern) |
+        str_detect(proteinatlas_biological_process, biological_process_pattern),
+      'immune cell/tissue expression or involved in inflammation/immunity',
+      'no immune cell/tissue expression or involved in inflammation/immunity')
   ) %>%
-  mutate(immune_expression = ifelse(is.na(immune_expression), "no immune expression", immune_expression))
+  mutate(
+    immune_involvement = ifelse(
+      is.na(immune_involvement),
+      "no immune cell/tissue expression or involved in inflammation/immunity",
+      immune_involvement)
+  )
 
 # Annotate genes that have an immune phenotype in mice
 metadata <- metadata %>%
@@ -107,7 +120,7 @@ write_csv(metadata, args$output)
 
 filtered_metadata <- metadata %>%
   filter(mouse_immune_phenotype == "mouse immune phenotype") %>%
-  filter(immune_expression == "immune expression") %>%
+  filter(immune_involvement == "immune cell/tissue expression or involved in inflammation/immunity") %>%
   filter(any_extracellular_location == "extracellular")
 
 write_csv(filtered_metadata, args$output_filtered)

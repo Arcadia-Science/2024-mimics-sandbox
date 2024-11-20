@@ -2,6 +2,8 @@ library(tidyverse)
 library(optparse)
 
 option_list <- list(
+  make_option(c("--host"), type="character",
+              help="Name of host organism."),
   make_option(c("--input"), type="character",
               help="Path to foldseek results TSV file."),
   make_option(c("--output"), type="character",
@@ -30,13 +32,28 @@ foldseek_results_filtered <- foldseek_results %>%
   dplyr::relocate(all_of(c("avg_tmscore", "min_tmscore")),
                   .after = ttmscore) %>%
   # remove viral matches that hit DNA/RNA replicative machinery
-  filter(!grepl(pattern = "polymerase", x = host_function_cc)) %>%
-  # filter to host proteins that have signal peptides
-  filter(grepl(pattern = "SIGNAL", x=host_signal_peptide)) %>%
-  # include extracellular and cell membrane targets
-  mutate(host_subcellular_location_cc = tolower(host_subcellular_location_cc)) %>%
-  filter(grepl(pattern = "cell membrane|cell junction|cell projection|subcellular location: membrane|secreted",
-               x = host_subcellular_location_cc)) %>%
+  filter(!grepl(pattern = "polymerase", x = host_function_cc))
+
+if(args$host == "human"){
+  foldseek_results_filtered <- foldseek_results_filtered %>%
+    # filter to host proteins that are extracellular 
+    filter(any_extracellular_location == "extracellular") %>%
+    # bring forward the immune and mouse information
+    dplyr::relocate(immune_involvement, mouse_immune_phenotype, 
+                    .after = host_subcellular_location_cc)
+} else {
+  foldseek_results_filtered <- foldseek_results_filtered %>%
+    # filter to host proteins that have signal peptides OR proteins that are
+    # annotated as extracellular or membrane targets
+    mutate(host_subcellular_location_cc = tolower(host_subcellular_location_cc)) %>%
+    filter(
+      grepl(pattern = "SIGNAL", x = host_signal_peptide) |
+        grepl(pattern = "cell membrane|cell junction|cell projection|subcellular location: membrane|secreted",
+              x = host_subcellular_location_cc)
+    )
+}
+
+foldseek_results_filtered <- foldseek_results_filtered %>%
   # change order of columns so it's easier to see the host organism
   dplyr::relocate(host_organism, .before = target) %>%
   # select only the top hit for each query

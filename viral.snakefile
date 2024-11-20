@@ -415,6 +415,7 @@ rule compare_each_viral_pdb_against_all_host_pdbs:
 rule combine_foldseek_results_with_metadata_viral:
     input:
         foldseek_tsv=rules.compare_each_viral_pdb_against_all_host_pdbs.output.tsv,
+        human_metadata_csv=rules.combine_human_metadata.output.csv1,
         host_metadata_tsv=rules.fetch_uniprot_metadata_per_host_proteome.output.tsv,
         host_lddt_tsv=rules.assess_pdbs_per_host_proteome.output.tsv,
         query_metadata_tsv=rules.filter_nomburg_viruses_by_host.output.tsv,
@@ -426,7 +427,9 @@ rule combine_foldseek_results_with_metadata_viral:
     shell:
         """
         Rscript scripts/combine_foldseek_results_with_metadata_viral.R \
+            --host {wildcards.host_organism} \
             --input_foldseek_results {input.foldseek_tsv} \
+            --input_human_metadata {input.human_metadata_csv} \
             --input_host_metadata {input.host_metadata_tsv} \
             --input_host_lddt {input.host_lddt_tsv} \
             --input_query_metadata {input.query_metadata_tsv} \
@@ -448,6 +451,7 @@ rule filter_foldseek_viral_results_criteria1:
     shell:
         """
         Rscript scripts/filter_foldseek_viral_results_criteria1.R \
+            --host {wildcards.host_organism} \
             --input {input.tsv} \
             --output {output.csv}
         """
