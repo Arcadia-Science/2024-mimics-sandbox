@@ -29,7 +29,7 @@ extracellular_keywords <- c('extracellular', 'secreted', 'cell surface',
 extracellular_pattern <- paste(extracellular_keywords, collapse = '|')
 
 molecular_function_keywords <- c("receptor", "extracellular", "secreted",
-                                 "cytokine", "neuropeptide", "peptide")
+                                 "cytokine", "neuropeptide", "hormone")
 molecular_function_pattern <- paste(molecular_function_keywords, collapse = '|')
 
 immune_expression_keywords <- c("innate immune response", "immune response",
