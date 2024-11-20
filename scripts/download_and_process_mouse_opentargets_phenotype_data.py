@@ -1,27 +1,43 @@
 #!/usr/bin/env python3
 
+"""
+This script downloads "mouse phenotype" information from the database OpenTargets.
+
+Originally, we downloaded the OpenTargets metadata with the following wget command:
+
+wget --recursive --no-parent --no-host-directories --cut-dirs=8 \
+  --accept "*.parquet" \
+   ftp://ftp.ebi.ac.uk/pub/databases/opentargets/platform/latest/output/etl/parquet/mousePhenotypes/
+
+We changed the download in the script below because only a single file records the mouse phenotype
+information.
+"""
 import argparse
 import os
 import sys
+
 import requests
 from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
-import pandas as pd
+
 
 def main():
     parser = argparse.ArgumentParser(description='Process mouse phenotype data.')
-    parser.add_argument('--download-dir', default='mousePhenotypes', help='Output directory for the downloaded file.')
+    parser.add_argument(
+        '--download-dir',
+        default='mousePhenotypes',
+        help='Output directory for the downloaded file.'
+    )
     parser.add_argument('--output', required=True, help='Path to the output CSV file.')
     args = parser.parse_args()
-    
+
     download_dir = args.download_dir
     os.makedirs(download_dir, exist_ok=True)
-    
-    # wget --recursive --no-parent --no-host-directories --cut-dirs=8 \
-    #     --accept "*.parquet" \
-    #    ftp://ftp.ebi.ac.uk/pub/databases/opentargets/platform/latest/output/etl/parquet/mousePhenotypes/
 
-    url = 'https://ftp.ebi.ac.uk/pub/databases/opentargets/platform/latest/output/etl/parquet/mousePhenotypes/part-00000-41f2eb84-c5e3-4d67-b3b7-4bd87c1e23db-c000.snappy.parquet'
+
+    root = 'https://ftp.ebi.ac.uk/pub/databases/opentargets/platform/latest/output/etl/parquet/'
+    file = 'mousePhenotypes/part-00000-41f2eb84-c5e3-4d67-b3b7-4bd87c1e23db-c000.snappy.parquet'
+    url = root + file
     local_filename = os.path.join(download_dir, 'mouse_phenotypes.parquet')
 
     if not os.path.exists(local_filename):
@@ -50,12 +66,14 @@ def main():
     )
 
     # Explode `modelPhenotypeClasses` to access each individual row
-    final_mouse = aggregated_mouse.withColumn("exploded_phenotype", F.explode_outer("modelPhenotypeClasses"))
+    final_mouse = aggregated_mouse.withColumn("exploded_phenotype",
+                                              F.explode_outer("modelPhenotypeClasses"))
 
     # Extract only the `label` from each row in `modelPhenotypeClasses`
     final_mouse = final_mouse.withColumn(
         "phenotype_label",
-        F.when(F.col("exploded_phenotype").isNotNull(), F.col("exploded_phenotype.label")).otherwise(None)
+        F.when(F.col("exploded_phenotype").isNotNull(),
+        F.col("exploded_phenotype.label")).otherwise(None)
     )
 
     # Collect unique phenotype labels into a new list column `mouse_phenotype`
