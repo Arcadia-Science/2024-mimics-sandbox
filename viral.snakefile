@@ -327,6 +327,51 @@ rule assess_pdbs_per_host_proteome:
 
 
 #####################################################################
+## Download and format human-specific metadata
+#####################################################################
+"""
+We're most interested in human phenotypes, and there is a lot of metadata available about human
+genes/proteins. This section downloads and formats some human-specific resources. 
+"""
+
+rule download_human_expression_atlas_metadata:
+    output: tsv=INPUT_DIRPATH / "human_proteinatlas.tsv.zip"
+    shell:
+        """
+        curl -JLo {output} https://www.proteinatlas.org/download/proteinatlas.tsv.zip
+        """
+
+rule download_and_process_mouse_opentargets_phenotype_data:
+    output: csv=OUTPUT_DIRPATH / "metadata" / "opentargets" / "mouse_phenotypes.csv"
+    params: download_dir=INPUT_DIRPATH / "opentargets" / "mouse_phenotypes_raw"
+    conda: "envs/pyspark.yml"
+    shell:
+        """
+        python scripts/download_and_process_mouse_opentargets_phenotype_data.py \
+            --download-dir {params.download_dir} \
+            --output {output.csv}
+        """
+
+rule combine_human_metadata:
+    input:
+        tsv1=expand(rules.fetch_uniprot_metadata_per_host_proteome.output.tsv, host_organism = "human"),
+        tsv2=rules.download_human_expression_atlas_metadata.output.tsv,
+        csv=rules.download_and_process_mouse_opentargets_phenotype_data.output.csv
+    output:
+        csv1 = OUTPUT_DIRPATH / "metadata" / "human_metadata_combined.csv",
+        csv2 = OUTPUT_DIRPATH / "metadata" / "human_metadata_combined_filtered.csv",
+    conda: "envs/tidyverse.yml"
+    shell:
+        """
+        Rscript scripts/combine_human_metadata.R \
+            --input_uniprot {input.tsv1} \
+            --input_protein_atlas {input.tsv2} \
+            --input_mouse_opentargets {input.csv} \
+            --output {output.csv1} \
+            --output_filtered {output.csv2}
+        """
+
+#####################################################################
 ## Do structural comparisons between viral proteins and host proteins
 #####################################################################
 
@@ -418,3 +463,4 @@ rule all:
     default_target: True
     input:
         rules.combine_all_foldseek_results.output.csv,
+        rules.combine_human_metadata.output.csv2
