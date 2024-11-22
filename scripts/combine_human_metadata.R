@@ -26,11 +26,11 @@ extracellular_keywords <- c('extracellular', 'secreted', 'cell surface',
                            'pericellular', 'secretory vesicle membrane',
                            'cytoplasmic vesicle, secretory vesicle membrane',
                            'synaptic vesicle membrane')
-extracellular_pattern <- paste(extracellular_keywords, collapse = '|')
+extracellular_pattern <- paste(extracellular_keywords, collapse = "|")
 
 molecular_function_keywords <- c("receptor", "extracellular", "secreted",
                                  "cytokine", "neuropeptide", "hormone")
-molecular_function_pattern <- paste(molecular_function_keywords, collapse = '|')
+molecular_function_pattern <- paste(molecular_function_keywords, collapse = "|")
 
 immune_expression_keywords <- c("innate immune response", "immune response",
                                 "adaptive immune response", "cytokine signaling",
@@ -38,15 +38,25 @@ immune_expression_keywords <- c("innate immune response", "immune response",
                                 "nk-cell", "monocyte", "neutrophil", "macrophage",
                                 "plasma cell", "dendritic cell", "lymphoid tissue",
                                 "spleen", "thymus")
-immune_keywords_pattern <- paste(immune_expression_keywords, collapse = '|')
+immune_keywords_pattern <- paste(immune_expression_keywords, collapse = "|")
 
 # Note that "immunity" will capture innate immunity, adaptive immunity, and
 # immunity
 biological_process_keywords <- c("inflammatory response", "immunity")
-biological_process_pattern <- paste(biological_process_keywords, collapse = '|')
+biological_process_pattern <- paste(biological_process_keywords, collapse = "|")
+
+# Some genes that are immune involved are left out. The three patterns below
+# rescue some of these.
+gene_description_keywords <- c("interleukin", "immunoglobulin", "chemokine")
+gene_description_pattern <- paste(gene_description_keywords, collapse = "|")
+
+protein_class_keywords <- c("cd marker")
+protein_class_pattern <- paste(protein_class_keywords, collapse = "|")
+
+specific_immune_involved_proteins <- c("VSTM5", "SERPINA3", "RIPK4")
+specific_immune_involved_pattern <- paste(specific_immune_involved_proteins, collapse = "|")
 
 # Read in metadata files and combine --------------------------------------
-
 uniprot <- read_tsv(args$input_uniprot) %>%
   clean_names() %>%
   rename_with(~ paste0("uniprot_", .), everything()) %>%
@@ -70,7 +80,8 @@ metadata <- uniprot %>%
       proteinatlas_molecular_function, proteinatlas_blood_expression_cluster,
       proteinatlas_tissue_expression_cluster,
       proteinatlas_single_cell_expression_cluster,
-      proteinatlas_biological_process),
+      proteinatlas_biological_process, proteinatlas_gene_description,
+      proteinatlas_protein_class),
     tolower))
 
 # process metadata to pull out information of interest --------------------
@@ -96,7 +107,10 @@ metadata <- metadata %>%
       str_detect(proteinatlas_blood_expression_cluster, immune_keywords_pattern) |
         str_detect(proteinatlas_tissue_expression_cluster, immune_keywords_pattern) |
         str_detect(proteinatlas_single_cell_expression_cluster, immune_keywords_pattern) |
-        str_detect(proteinatlas_biological_process, biological_process_pattern),
+        str_detect(proteinatlas_biological_process, biological_process_pattern) |
+        str_detect(proteinatlas_gene_description, gene_description_pattern) |
+        str_detect(proteinatlas_protein_class, protein_class_pattern) |
+        str_detect(uniprot_gene_names_primary, specific_immune_involved_pattern),
       'immune cell/tissue expression or involved in inflammation/immunity',
       'no immune cell/tissue expression or involved in inflammation/immunity')
   ) %>%

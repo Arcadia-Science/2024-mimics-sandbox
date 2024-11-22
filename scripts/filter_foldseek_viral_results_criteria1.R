@@ -59,6 +59,9 @@ foldseek_results_filtered <- foldseek_results_filtered %>%
   # select only the top hit for each query
   arrange(query, evalue) %>%
   group_by(query, query_species) %>%
-  slice_min(evalue)
+  slice_min(evalue) %>%
+  # sometimes, there are two hits with the same evalue
+  # select the one with the highest max tmscore
+  slice_max(max_tmscore) 
 
 write_csv(foldseek_results_filtered, args$output)
