@@ -433,7 +433,31 @@ rule combine_all_foldseek_results:
         """
 
 
+rule detect_dual_mimicry:
+    input:
+        tsv=rules.combine_foldseek_results_with_metadata_viral.output.tsv,
+    output:
+        png=OUTPUT_DIRPATH
+        / "viral"
+        / "{host_organism}"
+        / "dual_mimicry_cooccurrence_taxonomic_plot.png",
+        csv1=OUTPUT_DIRPATH / "viral" / "{host_organism}" / "dual_mimicry_cooccurrence.csv",
+        csv2=OUTPUT_DIRPATH / "viral" / "{host_organism}" / "dual_mimicry_dual_domain.csv",
+    conda:
+        "envs/phylogenetics.yml"
+    shell:
+        """
+        Rscript scripts/detect_dual_mimicry.R \
+            --input_foldseek_results {input.tsv} \
+            --output_taxonomic_plot {output.png} \
+            --output_cooccurrence {output.csv1} \
+            --output_dual_domain {output.csv2}
+        """
+
+
 rule all:
     default_target: True
     input:
         rules.combine_all_foldseek_results.output.csv,
+        expand(rules.detect_dual_mimicry.output.csv1, host_organism=HOST_ORGANISMS),
+        expand(rules.detect_dual_mimicry.output.csv2, host_organism=HOST_ORGANISMS),
