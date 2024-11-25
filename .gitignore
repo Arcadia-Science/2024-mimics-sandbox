@@ -6,10 +6,22 @@ scripts/ProteinCartography_scripts_downloaded.txt
 # Snakemake-related folders and files
 .snakemake/
 /input/
-/output/
+/outputs/
 /demo/output/
 /demo/input/
 /logs
+inputs/deprecated/
+inputs/taxdump.tar.gz
+inputs/taxdump/
+inputs/ticks-on-a-tree/
+inputs/uniprot/
+sandbox/
+tmp_foldseek/
+scripts/deprecated/
+inputs/41586_2024_7809_MOESM4_ESM.xlsx
+inputs/viralzone.expasy.org-678.tsv
+inputs/viral/Nomburg_2023_structures.zip
+inputs/viral/virushostdb.tsv
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

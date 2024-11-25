@@ -57,7 +57,14 @@ TODO: add a thorough description of how the tool works and should be used. Consi
 We ran this snakefile on a MacBook Pro, 2021 (Apple M1 Max chip, 64 GB RAM, 10 cores).
 We used up to 6 cores to run the snakefile.
 The complete snakefile ran in ~4 hours.
-The input and output files take up approximately 60GB of space.  
+The input and output files take up approximately 60GB of space.
+
+#### `viral.snakefile`
+
+We ran this snakefile on a MacBook Pro, 2021 (Apple M1 Max chip, 64 GB RAM, 10 cores).
+We used up to 8 cores to run the snakefile.
+The complete snakefile ran in 50 minutes with 8 cores (however runtime will depend on download speed as there are a few large downloads).
+The input and output files take up approximately 95GB of space.
 
 ## Contributing
 
