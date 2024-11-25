@@ -335,6 +335,14 @@ rule compare_each_viral_pdb_against_all_host_pdbs:
     """
     TER TODO: output like the foldseek server if useful to the team:
     foldseek easy-search example/d1asha_ example/ result.html tmp --format-mode 3
+
+    Below, we use foldseek to compare viral structures against 
+    For evalue filtering (-e), see
+    [this issue](https://github.com/steineggerlab/foldseek/issues/167#issuecomment-1674254348),
+    which recommends filtering with an evalue threshold of 0.01. This retains hits that likely have
+    real structural homology while reducing the overall size of the initial results. In subsequent
+    rules, we filter these results in different ways to pull out different kinds of mimics or mimics
+    with different properties of interest.
     """
     input:
         protein_structures_dir=rules.download_host_pdbs.output.protein_structures_dir,
@@ -380,6 +388,17 @@ rule combine_foldseek_results_with_metadata_viral:
 
 
 rule filter_foldseek_viral_results_criteria1:
+    """
+    This rule selects viral mimics that are top candidates for anti-inflammatory drug targets.
+    It filters for strong similarity to host proteins (tcov, qcov, evalue thresholds, alnlen >= 100,
+    max_tmscore >= 0.4), high-quality structural predictions (pLDDT > 50), excludes viral
+    replication proteins (e.g., polymerases), and prioritizes druggable host proteins (extracellular
+    or membrane). Among multiple hits, the best structural mimic is selected based on the lowest
+    e-value.
+    
+    Some of these selections are heuristic, and we anticipate we'll change this filtering criteria
+    or introduce new criteria over time.
+    """
     input:
         tsv=rules.combine_foldseek_results_with_metadata_viral.output.tsv,
     output:
