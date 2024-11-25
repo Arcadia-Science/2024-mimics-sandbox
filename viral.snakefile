@@ -32,7 +32,7 @@ OUTPUT_DIRPATH = Path("outputs")
 INPUT_DIRPATH = Path("inputs")
 # Indicate additional metadata fields to retrieve when fetching UniProt protein metadata.
 # Options documented at https://www.uniprot.org/help/return_fields.
-UNIPROT_ADDITIONAL_FIELDS = "ft_act_site,cc_activity_regulation,ft_binding,cc_catalytic_activity,cc_cofactor,ft_dna_bind,ec,cc_function,kinetics,cc_pathway,ph_dependence,redox_potential,rhea,ft_site,temp_dependence,fragment,organelle,mass,cc_rna_editing,reviewed,cc_interaction,cc_subunit,cc_developmental_stage,cc_induction,cc_tissue_specificity,go_id,cc_allergen,cc_biotechnology,cc_disruption_phenotype,cc_disease,ft_mutagen,cc_pharmaceutical,cc_toxic_dose,ft_intramem,cc_subcellular_location,ft_topo_dom,ft_transmem,ft_chain,ft_crosslnk,ft_disulfid,ft_carbohyd,ft_init_met,ft_lipid,ft_mod_res,ft_peptide,cc_ptm,ft_propep,ft_signal,ft_transit,ft_coiled,ft_compbias,cc_domain,ft_domain,ft_motif,protein_families,ft_region,ft_repeat,ft_zn_fing,lit_pubmed_id"
+UNIPROT_ADDITIONAL_FIELDS = "cc_alternative_products,ft_var_seq,ft_variant,cc_caution,ft_act_site,cc_activity_regulation,ft_binding,cc_catalytic_activity,cc_cofactor,ft_dna_bind,ec,cc_function,kinetics,cc_pathway,ph_dependence,redox_potential,rhea,ft_site,temp_dependence,fragment,organelle,mass,cc_rna_editing,reviewed,cc_interaction,cc_subunit,cc_developmental_stage,cc_induction,cc_tissue_specificity,go_id,cc_allergen,cc_biotechnology,cc_disruption_phenotype,cc_disease,ft_mutagen,cc_pharmaceutical,cc_toxic_dose,ft_intramem,cc_subcellular_location,ft_topo_dom,ft_transmem,ft_chain,ft_crosslnk,ft_disulfid,ft_carbohyd,ft_init_met,ft_lipid,ft_mod_res,ft_peptide,cc_ptm,ft_propep,ft_signal,ft_transit,ft_coiled,ft_compbias,cc_domain,ft_domain,ft_motif,protein_families,ft_region,ft_repeat,ft_zn_fing,lit_pubmed_id"
 
 # Read in host metadata, which we'll use to link the organism name to identifiers like taxid and
 # uniprot proteome id. Setting the index allows us to use the organism name as a look up to find
@@ -239,30 +239,36 @@ rule assess_pdbs_viral:
 #####################################################################
 
 
-rule get_uniprot_ids_from_host_proteome_id:
+rule download_uniprot_proteome_canonical_sequence_ids:
+    """
+    The following rule uses the UniProt FASTA file that records one protein per gene for each of our
+    reference proteomes as the source of UniProt Protein IDs. This allows us to use only the
+    canonical host protein for comparisons, as these are more metadata-complete and facilitate a
+    cleaner analysis.
+    """
     output:
-        txt=OUTPUT_DIRPATH / "viral" / "{host_organism}" / "host_proteome_protein_identifiers.txt",
+        txt=OUTPUT_DIRPATH / "viral" / "{host_organism}" / "host_proteome_canonical_protein_ids.txt",
+    conda:
+        "envs/seqkit.yml"
     params:
         uniprot_proteome_id=lambda wildcards: host_metadata.loc[
             wildcards.host_organism, "uniprot_proteome_id"
         ],
-    conda:
-        "envs/web_apis.yml"
+        taxon_id=lambda wildcards: host_metadata.loc[wildcards.host_organism, "taxon_id"],
     shell:
         """
-        python scripts/get_uniprot_ids_from_proteome.py \
-            --uniprot-proteome-id {params.uniprot_proteome_id} \
-            --output {output.txt}
+        curl -JL https://ftp.uniprot.org/pub/databases/uniprot/current_release/knowledgebase/reference_proteomes/Eukaryota/{params.uniprot_proteome_id}/{params.uniprot_proteome_id}_{params.taxon_id}.fasta.gz | \
+            seqkit seq --only-id --name | cut -d'|' -f2 > {output.txt}
         """
 
 
 rule fetch_uniprot_metadata_per_host_proteome:
     """
-    Query Uniprot for the aggregated hits and download all metadata as a TSV.
+    Query UniProt using canonical protein IDs and download specified metadata as a TSV.
     """
     input:
         py=rules.download_proteincartography_scripts.output.txt,
-        txt=rules.get_uniprot_ids_from_host_proteome_id.output.txt,
+        txt=rules.download_uniprot_proteome_canonical_sequence_ids.output.txt,
     output:
         tsv=OUTPUT_DIRPATH / "viral" / "{host_organism}" / "host_proteome_protein_features.tsv",
     conda:
@@ -285,7 +291,7 @@ rule download_host_pdbs:
     """
     input:
         py=rules.download_proteincartography_scripts.output.txt,
-        txt=rules.get_uniprot_ids_from_host_proteome_id.output.txt,
+        txt=rules.download_uniprot_proteome_canonical_sequence_ids.output.txt,
     output:
         protein_structures_dir=directory(
             OUTPUT_DIRPATH / "viral" / "{host_organism}" / "host_proteome_pdb_structures"
@@ -327,7 +333,16 @@ rule assess_pdbs_per_host_proteome:
 
 rule compare_each_viral_pdb_against_all_host_pdbs:
     """
-    TER TODO: output like the foldseek server: foldseek easy-search example/d1asha_ example/ result.html tmp --format-mode 3
+    TER TODO: output like the foldseek server if useful to the team:
+    foldseek easy-search example/d1asha_ example/ result.html tmp --format-mode 3
+
+    Below, we use foldseek to compare viral structures against 
+    For evalue filtering (-e), see
+    [this issue](https://github.com/steineggerlab/foldseek/issues/167#issuecomment-1674254348),
+    which recommends filtering with an evalue threshold of 0.01. This retains hits that likely have
+    real structural homology while reducing the overall size of the initial results. In subsequent
+    rules, we filter these results in different ways to pull out different kinds of mimics or mimics
+    with different properties of interest.
     """
     input:
         protein_structures_dir=rules.download_host_pdbs.output.protein_structures_dir,
@@ -373,6 +388,17 @@ rule combine_foldseek_results_with_metadata_viral:
 
 
 rule filter_foldseek_viral_results_criteria1:
+    """
+    This rule selects viral mimics that are top candidates for anti-inflammatory drug targets.
+    It filters for strong similarity to host proteins (tcov, qcov, evalue thresholds, alnlen >= 100,
+    max_tmscore >= 0.4), high-quality structural predictions (pLDDT > 50), excludes viral
+    replication proteins (e.g., polymerases), and prioritizes druggable host proteins (extracellular
+    or membrane). Among multiple hits, the best structural mimic is selected based on the lowest
+    e-value.
+    
+    Some of these selections are heuristic, and we anticipate we'll change this filtering criteria
+    or introduce new criteria over time.
+    """
     input:
         tsv=rules.combine_foldseek_results_with_metadata_viral.output.tsv,
     output:
