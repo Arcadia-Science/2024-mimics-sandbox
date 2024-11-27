@@ -121,6 +121,10 @@ if(args$host == "human"){
 }
 
 foldseek_results_filtered <- foldseek_results_filtered %>%
+  # remove columns that aren't helpful (all unprognostic basically)
+  select(-starts_with("proteinatlas_cancer")) %>%
+  # remove column that messes up parsing
+  select(-host_natural_variant) %>%
   # change order of columns so it's easier to see the host organism
   dplyr::relocate(host_organism, .before = target) %>%
   # select only the top hit for each query

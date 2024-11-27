@@ -42,7 +42,8 @@ immune_keywords_pattern <- paste(immune_expression_keywords, collapse = "|")
 
 # Note that "immunity" will capture innate immunity, adaptive immunity, and
 # immunity
-biological_process_keywords <- c("inflammatory response", "immunity")
+biological_process_keywords <- c("inflammatory response", "immunity",
+                                 "host-virus interaction")
 biological_process_pattern <- paste(biological_process_keywords, collapse = "|")
 
 # Some genes that are immune involved are left out. The three patterns below
@@ -53,7 +54,10 @@ gene_description_pattern <- paste(gene_description_keywords, collapse = "|")
 protein_class_keywords <- c("cd marker")
 protein_class_pattern <- paste(protein_class_keywords, collapse = "|")
 
-specific_immune_involved_proteins <- c("VSTM5", "SERPINA3", "RIPK4")
+specific_immune_involved_proteins <- c("ATRNL1", "ERBB2", "GPR83", "HTRA3",
+                                       "LGALS3BP", "PRSS57", "RIPK4", "SERPINA3",
+                                       "SERPINE1", "SERPINE2", "SRPB1", "TYRO3",
+                                        "VSTM5")
 specific_immune_involved_pattern <- paste(specific_immune_involved_proteins, collapse = "|")
 
 # Read in metadata files and combine --------------------------------------
