@@ -392,13 +392,7 @@ rule compare_each_viral_pdb_against_all_host_pdbs:
     TER TODO: output like the foldseek server if useful to the team:
     foldseek easy-search example/d1asha_ example/ result.html tmp --format-mode 3
 
-    Below, we use foldseek to compare viral structures against 
-    For evalue filtering (-e), see
-    [this issue](https://github.com/steineggerlab/foldseek/issues/167#issuecomment-1674254348),
-    which recommends filtering with an evalue threshold of 0.01. This retains hits that likely have
-    real structural homology while reducing the overall size of the initial results. In subsequent
-    rules, we filter these results in different ways to pull out different kinds of mimics or mimics
-    with different properties of interest.
+    Below, we use foldseek to compare viral structures against proteins in the human proteome.
     """
     input:
         protein_structures_dir=rules.download_host_pdbs.output.protein_structures_dir,
@@ -414,7 +408,6 @@ rule compare_each_viral_pdb_against_all_host_pdbs:
             {input.protein_structures_dir} \
             {output.tsv} \
             tmp_foldseek \
-            -e 0.01 \
             --format-output query,target,qlen,tlen,alnlen,alntmscore,qtmscore,ttmscore,lddt,prob,qcov,tcov,pident,bits,evalue,cigar,qseq,tseq,qstart,qend,tstart,tend,qaln,taln \
             --format-mode 4
         """
@@ -443,6 +436,50 @@ rule combine_foldseek_results_with_metadata_viral:
             --input_query_metadata {input.query_metadata_tsv} \
             --input_query_lddt {input.query_lddt_tsv} \
             --output {output.tsv}
+        """
+
+
+rule filter_to_top_hits_for_each_viral_query_structure:
+    input:
+        tsv=rules.combine_foldseek_results_with_metadata_viral.output.tsv,
+    output:
+        csv=OUTPUT_DIRPATH
+        / "viral"
+        / "{host_organism}"
+        / "nomburg_virus_matches_with_metadata_filtered_top_hit.csv",
+    conda:
+        "envs/tidyverse.yml"
+    shell:
+        """
+        Rscript scripts/filter_to_top_hits_for_each_viral_query_structure.R \
+            --input {input.tsv} \
+            --output {output.csv}
+        """
+
+
+rule filter_to_evalue_less_than_01:
+    """
+    For evalue filtering (-e), see
+    [this issue](https://github.com/steineggerlab/foldseek/issues/167#issuecomment-1674254348),
+    which recommends filtering with an evalue threshold of 0.01. This retains hits that likely have
+    real structural homology while reducing the overall size of the initial results. In subsequent
+    rules, we filter these results in different ways to pull out different kinds of mimics or mimics
+    with different properties of interest.
+    """
+    input:
+        tsv=rules.combine_foldseek_results_with_metadata_viral.output.tsv,
+    output:
+        csv=OUTPUT_DIRPATH
+        / "viral"
+        / "{host_organism}"
+        / "nomburg_virus_matches_with_metadata_filtered_evalue_less_than_0.01.csv",
+    conda:
+        "envs/tidyverse.yml"
+    shell:
+        """
+        Rscript scripts/filter_to_evalue_less_than_0.01.R \
+            --input {input.tsv} \
+            --output {output.csv}
         """
 
 
@@ -497,4 +534,8 @@ rule all:
     default_target: True
     input:
         rules.combine_all_foldseek_results.output.csv,
-        rules.combine_human_metadata.output.csv2,
+        expand(
+            rules.filter_to_top_hits_for_each_viral_query_structure.output.csv,
+            host_organism=HOST_ORGANISMS,
+        ),
+        expand(rules.filter_to_evalue_less_than_01.output.csv, host_organism=HOST_ORGANISMS),

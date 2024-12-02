@@ -74,7 +74,9 @@ foldseek_results <- foldseek_results %>%
   dplyr::relocate(all_of(c("host_gene_names_primary", "host_function_cc",
                            "host_tissue_specificity", "host_subcellular_location_cc")),
                   .before = lddt) %>%
-  arrange(desc(alntmscore))
+  arrange(desc(alntmscore)) %>%
+  # remove a column that causes parsing errors in excel
+  select(-host_natural_variant)
 
 
 write_tsv(foldseek_results, args$output)
