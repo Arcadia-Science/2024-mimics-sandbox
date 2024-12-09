@@ -25,7 +25,15 @@ args <- parse_args(OptionParser(option_list=option_list))
 
 foldseek_results <- read_tsv(args$input_foldseek_results, show_col_types = FALSE) %>%
   mutate(query = str_remove(string = query, pattern = "\\.pdb"),
-         target = str_remove(string = target, pattern = "\\.pdb"))
+         target = str_remove(string = target, pattern = "\\.pdb")) %>%
+  # recalculate the foldseek alntmscore (alignment TM-score), which is
+  # incorrect some fraction of the time even when foldseek arguments are
+  # provided in the correct order
+  mutate(tmraw1 = qtmscore * qlen,
+         tmraw2 = ttmscore * tlen,
+         tmraw = (tmraw1 + tmraw2) / 2,
+         alntmscore = tmraw/alnlen) %>%
+  select(-tmraw1, -tmraw2, -tmraw)
 
 host_pdb_lddt <- read_tsv(args$input_host_lddt, show_col_types = FALSE) %>%
   select(protid, pdb_plddt = pdb_confidence)
