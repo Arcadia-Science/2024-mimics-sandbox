@@ -408,7 +408,6 @@ rule compare_each_viral_pdb_against_all_host_pdbs:
             {input.protein_structures_dir} \
             {output.tsv} \
             tmp_foldseek \
-            --alignment-type 1 \
             --format-output query,target,qlen,tlen,alnlen,alntmscore,qtmscore,ttmscore,lddt,prob,qcov,tcov,pident,bits,evalue,cigar,qseq,tseq,qstart,qend,tstart,tend,qaln,taln \
             --format-mode 4
         """
