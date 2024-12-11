@@ -40,6 +40,7 @@ UNIPROT_ADDITIONAL_FIELDS = "cc_alternative_products,ft_var_seq,ft_variant,cc_ca
 host_metadata = pd.read_csv("inputs/viral/host-information.csv", header=0).set_index(
     ["organism"], drop=False
 )
+host_metadata = host_metadata[host_metadata["organism"] == "human"]
 HOST_ORGANISMS = host_metadata["organism"].unique().tolist()
 
 ###########################################################
@@ -392,13 +393,7 @@ rule compare_each_viral_pdb_against_all_host_pdbs:
     TER TODO: output like the foldseek server if useful to the team:
     foldseek easy-search example/d1asha_ example/ result.html tmp --format-mode 3
 
-    Below, we use foldseek to compare viral structures against 
-    For evalue filtering (-e), see
-    [this issue](https://github.com/steineggerlab/foldseek/issues/167#issuecomment-1674254348),
-    which recommends filtering with an evalue threshold of 0.01. This retains hits that likely have
-    real structural homology while reducing the overall size of the initial results. In subsequent
-    rules, we filter these results in different ways to pull out different kinds of mimics or mimics
-    with different properties of interest.
+    Below, we use foldseek to compare viral structures against host proteomes. 
     """
     input:
         protein_structures_dir=rules.download_host_pdbs.output.protein_structures_dir,
@@ -415,6 +410,9 @@ rule compare_each_viral_pdb_against_all_host_pdbs:
             {output.tsv} \
             tmp_foldseek \
             --alignment-type 1 \
+            -e inf \
+            --exhaustive-search 1 \
+            --tmscore-threshold 0.0 \
             --format-output query,target,qlen,tlen,alnlen,alntmscore,qtmscore,ttmscore,lddt,prob,qcov,tcov,pident,bits,evalue,cigar,qseq,tseq,qstart,qend,tstart,tend,qaln,taln \
             --format-mode 4
         """
