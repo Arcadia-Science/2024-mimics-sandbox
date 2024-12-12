@@ -113,6 +113,7 @@ def process_phenotypes(parquet_path: Path) -> pd.DataFrame:
 DOWNLOAD_DIR_OPTION = typer.Option(..., help="Directory to download files")
 OUTPUT_OPTION = typer.Option(..., help="Path to the output file")
 
+
 def main(
     download_dir: Path = DOWNLOAD_DIR_OPTION,
     output: Path = OUTPUT_OPTION,
