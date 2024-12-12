@@ -351,7 +351,7 @@ rule download_and_process_mouse_opentargets_phenotype_data:
     params:
         download_dir=INPUT_DIRPATH / "opentargets" / "mouse_phenotypes_raw",
     conda:
-        "envs/pyspark.yml"
+        "envs/pandas.yml"
     shell:
         """
         python scripts/download_and_process_mouse_opentargets_phenotype_data.py \
