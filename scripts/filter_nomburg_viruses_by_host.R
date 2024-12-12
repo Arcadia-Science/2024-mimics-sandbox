@@ -24,7 +24,6 @@ HOST_TAX_ID <- read_csv(args$host_metadata) %>%
   filter(organism == args$host_organism) %>%
   pull(taxon_id)
 
-#virushostdb <- read_tsv("outputs/viral/viral_lineages.tsv") %>%
 virushostdb <- read_tsv(args$virushostdb) %>%
   clean_names() %>%
   rename("ncbi_virus_lineage"= x15, "ncbi_virus_tax_id_lineage"=x16) %>%
@@ -36,7 +35,6 @@ virushostdb <- read_tsv(args$virushostdb) %>%
 # Birth of protein folds and functions in the virome. Nature 633, 710–717 (2024).
 # https://doi.org/10.1038/s41586-024-07809-y
 # Table includes names and taxonimic identifiers for viral proteins in the database.
-# supp_table1 <- read.xlsx("inputs/41586_2024_7809_MOESM4_ESM.xlsx", sheet = 1)
 supp_table1 <- read.xlsx(args$nomburg_metadata, sheet = 1)
 
 # Parse viral protein metadata information from protein names.
