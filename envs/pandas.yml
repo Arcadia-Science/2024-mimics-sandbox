@@ -3,5 +3,8 @@ channels:
    - bioconda
    - defaults
 dependencies:
-   - pyspark=3.5.3 
+   - fastparquet=2024.11.0
+   - pandas=2.2.3
+   - pyarrow=18.1.0
    - requests=2.32.3
+   - typer=0.15.1
