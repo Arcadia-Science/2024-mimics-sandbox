@@ -327,6 +327,62 @@ rule assess_pdbs_per_host_proteome:
 
 
 #####################################################################
+## Download and format human-specific metadata
+#####################################################################
+"""
+We're most interested in human phenotypes, and there is a lot of metadata available about human
+genes/proteins. This section downloads and formats some human-specific resources. 
+"""
+
+
+rule download_human_expression_atlas_metadata:
+    output:
+        tsv=INPUT_DIRPATH / "human_proteinatlas.tsv.zip",
+    shell:
+        """
+        curl -JLo {output} https://www.proteinatlas.org/download/proteinatlas.tsv.zip
+        """
+
+
+rule download_and_process_mouse_opentargets_phenotype_data:
+    output:
+        csv=OUTPUT_DIRPATH / "metadata" / "opentargets" / "mouse_phenotypes.csv",
+    params:
+        download_dir=INPUT_DIRPATH / "opentargets" / "mouse_phenotypes_raw",
+    conda:
+        "envs/pandas.yml"
+    shell:
+        """
+        python scripts/download_and_process_mouse_opentargets_phenotype_data.py \
+            --download-dir {params.download_dir} \
+            --output {output.csv}
+        """
+
+
+rule combine_human_metadata:
+    input:
+        tsv1=expand(
+            rules.fetch_uniprot_metadata_per_host_proteome.output.tsv, host_organism="human"
+        ),
+        tsv2=rules.download_human_expression_atlas_metadata.output.tsv,
+        csv=rules.download_and_process_mouse_opentargets_phenotype_data.output.csv,
+    output:
+        csv1=OUTPUT_DIRPATH / "metadata" / "human_metadata_combined.csv",
+        csv2=OUTPUT_DIRPATH / "metadata" / "human_metadata_combined_filtered.csv",
+    conda:
+        "envs/tidyverse.yml"
+    shell:
+        """
+        Rscript scripts/combine_human_metadata.R \
+            --input_uniprot {input.tsv1} \
+            --input_protein_atlas {input.tsv2} \
+            --input_mouse_opentargets {input.csv} \
+            --output {output.csv1} \
+            --output_filtered {output.csv2}
+        """
+
+
+#####################################################################
 ## Do structural comparisons between viral proteins and host proteins
 #####################################################################
 
@@ -367,6 +423,7 @@ rule compare_each_viral_pdb_against_all_host_pdbs:
 rule combine_foldseek_results_with_metadata_viral:
     input:
         foldseek_tsv=rules.compare_each_viral_pdb_against_all_host_pdbs.output.tsv,
+        human_metadata_csv=rules.combine_human_metadata.output.csv1,
         host_metadata_tsv=rules.fetch_uniprot_metadata_per_host_proteome.output.tsv,
         host_lddt_tsv=rules.assess_pdbs_per_host_proteome.output.tsv,
         query_metadata_tsv=rules.filter_nomburg_viruses_by_host.output.tsv,
@@ -378,7 +435,9 @@ rule combine_foldseek_results_with_metadata_viral:
     shell:
         """
         Rscript scripts/combine_foldseek_results_with_metadata_viral.R \
+            --host {wildcards.host_organism} \
             --input_foldseek_results {input.foldseek_tsv} \
+            --input_human_metadata {input.human_metadata_csv} \
             --input_host_metadata {input.host_metadata_tsv} \
             --input_host_lddt {input.host_lddt_tsv} \
             --input_query_metadata {input.query_metadata_tsv} \
@@ -411,6 +470,7 @@ rule filter_foldseek_viral_results_criteria1:
     shell:
         """
         Rscript scripts/filter_foldseek_viral_results_criteria1.R \
+            --host {wildcards.host_organism} \
             --input {input.tsv} \
             --output {output.csv}
         """
@@ -437,3 +497,4 @@ rule all:
     default_target: True
     input:
         rules.combine_all_foldseek_results.output.csv,
+        rules.combine_human_metadata.output.csv2,
