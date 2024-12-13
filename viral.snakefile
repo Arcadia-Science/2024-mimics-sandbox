@@ -410,6 +410,8 @@ rule compare_each_viral_pdb_against_all_host_pdbs:
             {output.tsv} \
             tmp_foldseek \
             --alignment-type 1 \
+            --tmalign-fast 0 \
+            --exact-tmscore 0 \
             -e inf \
             --exhaustive-search 1 \
             --tmscore-threshold 0.0 \
