@@ -11,11 +11,11 @@ option_list <- list(
   make_option(c("--input_protein_atlas"), type="character",
               help="Path to human uniprot metadata TSV file."),
   make_option(c("--input_mouse_opentargets"), type="character",
-              help="Path to query uniprot metadata TSV file."),
+              help="Path to query uniprot metadata CSV file."),
   make_option(c("--output"), type="character",
               help="Path to output CSV file."),
   make_option(c("--output_filtered"), type="character",
-              help="Path to output TSV file.")
+              help="Path to output CSV file.")
 )
 
 args <- parse_args(OptionParser(option_list=option_list))
