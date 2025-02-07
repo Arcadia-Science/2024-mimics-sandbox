@@ -55,7 +55,7 @@ query_metadata <- read_tsv(args$input_query_metadata, show_col_types = FALSE) %>
   # If there are ties, keep the first one
   slice(1) %>%
   ungroup() %>%
-  select(-num_NAs, query_structure_filepaths)
+  select(-num_NAs, -query_structure_filepaths)
 
 # We have more metadata for human (UniProt, Protein Atlas, OpenTargets) than we
 # do for other species (UniProt). Treat this differently but try to end up with
@@ -63,16 +63,22 @@ query_metadata <- read_tsv(args$input_query_metadata, show_col_types = FALSE) %>
 if(args$host == "human"){
   host_metadata <- read_csv(args$input_human_metadata, show_col_types = FALSE) %>% 
     rename(protid = uniprot) %>%
+    # protect against multiple lines
+    group_by(protid) %>%
+    slice_head(n = 1) %>%
+    ungroup() %>%
     left_join(host_pdb_lddt, by = c("protid")) %>%
     # We want the metadata columns that are the same between species to have the
     # same column names.
     rename(host_protid = protid, host_pdb_plddt = pdb_plddt) %>%
-    rename_with(.cols = starts_with("uniprot"), function(x){gsub("uniprot_", "host_", x)})
+    rename_with(.cols = starts_with("uniprot"), function(x){gsub("uniprot_", "host_", x)}) %>%
+    distinct()
 } else {
   host_metadata <- read_tsv(args$input_host_metadata, show_col_types = FALSE) %>%
     clean_names() %>%
     left_join(host_pdb_lddt, by = c("protid")) %>%
-    rename_with(.cols = everything(), function(x){paste0("host_", x)})
+    rename_with(.cols = everything(), function(x){paste0("host_", x)}) %>%
+    distinct()
 }
 
 foldseek_results <- foldseek_results %>%
