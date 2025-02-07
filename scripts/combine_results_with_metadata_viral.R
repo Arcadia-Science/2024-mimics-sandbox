@@ -43,7 +43,7 @@ if(nrow(results) > 0){
   query_metadata <- read_tsv(args$input_query_metadata, show_col_types = FALSE) %>%
     clean_names() %>%
     # names might not match, so edit to original file names
-    mutate(protid = str_remove(string = structure_file, pattern = "$\\.pdb")) %>%
+    mutate(protid = str_remove(string = structure_file, pattern = "\\.pdb$")) %>%
     rename_with(.cols = everything(), function(x){paste0("query_", x)}) %>%
     distinct()
 
@@ -69,7 +69,6 @@ if(nrow(results) > 0){
       distinct()
   }
 
-  print("joining results")
   results <- results %>%
     left_join(host_metadata, by = c("target" = "host_protid")) %>%
     left_join(query_metadata, by = c("query" = "query_protid")) %>%
@@ -79,7 +78,7 @@ if(nrow(results) > 0){
                     .after = ttmscore) %>%
     arrange(desc(alntmscore)) %>%
     distinct()
-  print("writing results")
+
   write_tsv(results, args$output)
 } else {
   file.create(args$output)

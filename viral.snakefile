@@ -343,7 +343,7 @@ rule combine_results_with_metadata_viral:
             --input_human_metadata {input.human_metadata_csv} \
             --input_host_metadata {input.host_metadata_tsv} \
             --input_host_lddt {input.host_lddt_tsv} \
-            --input_query_metadata {input.query_metadata_tsv} 
+            --input_query_metadata {input.query_metadata_tsv} \
             --output {output.tsv}
         """
 
