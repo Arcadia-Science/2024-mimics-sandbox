@@ -37,6 +37,8 @@ host_metadata = pd.read_csv("inputs/viral/host-information.csv", header=0).set_i
     ["organism"], drop=False
 )
 HOST_ORGANISMS = host_metadata["organism"].unique().tolist()
+# limit to human for now
+HOST_ORGANISMS = HOST_ORGANISMS[0]
 
 ###########################################################
 ## Download ProteinCartography scripts
@@ -123,8 +125,11 @@ rule decompress_viral_structures:
         """
 
 rule download_viro3d_virus_structure_metadata:
-    output: tsv=INPUT_DIRPATH / "viral" / XXXXXX
-    # TER TODO: add URL once it's public
+    output: tsv=INPUT_DIRPATH / "viral" / "{host_organism}" / "merged_viral_metadata.tsv"
+    # TER TODO: add URL once it's public; metadata is now separated into different files
+    # (emily's pipeline creates it by host), so this will probably be a url in the host org file
+    # that we'll need to pull. It might make sense to change the name to have the host organism
+    # in it instead of making that a directory. TBD based on if we expand this to other species.
     shell:
         """
         curl -JLo {output} #URL
@@ -317,7 +322,7 @@ rule compare_each_viral_pdb_against_all_host_pdbs:
         """
 
 
-rule combine_foldseek_results_with_metadata_viral:
+rule combine_results_with_metadata_viral:
     input:
         foldseek_tsv=rules.compare_each_viral_pdb_against_all_host_pdbs.output.tsv,
         human_metadata_csv=rules.combine_human_metadata.output.csv1,
@@ -332,9 +337,9 @@ rule combine_foldseek_results_with_metadata_viral:
     # otherwise adjust for viro3d and potentially gtalign
     shell:
         """
-        Rscript scripts/combine_foldseek_results_with_metadata_viral.R \
+        Rscript scripts/combine_results_with_metadata_viral.R \
             --host {wildcards.host_organism} \
-            --input_foldseek_results {input.foldseek_tsv} \
+            --input_results {input.foldseek_tsv} \
             --input_human_metadata {input.human_metadata_csv} \
             --input_host_metadata {input.host_metadata_tsv} \
             --input_host_lddt {input.host_lddt_tsv} \
@@ -343,25 +348,26 @@ rule combine_foldseek_results_with_metadata_viral:
         """
 
 
-rule combine_all_foldseek_results:
-    input:
-        csvs=expand(
-            # TER TODO: figure out what needs to be combined and put the input files here
-        ),
-    output:
-        csv=OUTPUT_DIRPATH
-        / "viral"
-        # TER TODO: make a better output file name
-    conda:
-        "envs/csvtk.yml"
-    shell:
-        """
-        csvtk concat --out-file {output.csv}  {input.csvs}
-        """
+#rule combine_all_foldseek_results:
+#    input:
+#        csvs=expand(
+#            # TER TODO: figure out what needs to be combined and put the input files here
+#        ),
+#    output:
+#        csv=OUTPUT_DIRPATH
+#        / "viral"
+#        # TER TODO: make a better output file name
+#    conda:
+#        "envs/csvtk.yml"
+#    shell:
+#        """
+#        csvtk concat --out-file {output.csv}  {input.csvs}
+#        """
 
 
 rule all:
     default_target: True
     input:
-        rules.combine_all_foldseek_results.output.csv,
+        #rules.combine_all_foldseek_results.output.csv,
+        expand(rules.combine_results_with_metadata_viral.output.tsv, host_organism = HOST_ORGANISMS),
         rules.combine_human_metadata.output.csv2,
