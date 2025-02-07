@@ -400,6 +400,7 @@ rule compare_each_viral_pdb_against_all_host_pdbs:
         pdbs=rules.decompress_viral_structures.output.dest_dir,
     output:
         tsv=OUTPUT_DIRPATH / "viral" / "{host_organism}" / "nomburg_virus_matches.tsv",
+    threads: 15
     conda:
         "envs/foldseek.yml"
     shell:
@@ -416,7 +417,8 @@ rule compare_each_viral_pdb_against_all_host_pdbs:
             --exhaustive-search 1 \
             --tmscore-threshold 0.0 \
             --format-output query,target,qlen,tlen,alnlen,alntmscore,qtmscore,ttmscore,lddt,prob,qcov,tcov,pident,bits,evalue,cigar,qseq,tseq,qstart,qend,tstart,tend,qaln,taln \
-            --format-mode 4
+            --format-mode 4 \
+            --threads {threads}
         """
 
 
