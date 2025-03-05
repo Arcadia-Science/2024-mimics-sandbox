@@ -314,9 +314,11 @@ rule compare_each_viral_pdb_against_all_host_pdbs:
         tsv=OUTPUT_DIRPATH
         / "viral"
         / "{host_organism}"
-        / "viro3d_virus_matches_alignmenttype{alignment_type}.tsv",
+        / "tmp"
+        / "viro3d_virus_matches_alignmenttype{alignment_type}_tmp.tsv",
     conda:
         "envs/foldseek.yml"
+    threads: 31
     shell:
         """
         foldseek easy-search \
@@ -345,10 +347,14 @@ rule combine_results_with_metadata_viral:
         host_lddt_tsv=rules.assess_pdbs_per_host_proteome.output.tsv,
         query_metadata_tsv=rules.download_viro3d_virus_structure_metadata.output.tsv,
     output:
-        tsv=OUTPUT_DIRPATH
+        tsv1=OUTPUT_DIRPATH
         / "viral"
         / "{host_organism}"
-        / "viro3d_virus_matches_alignmenttype{alignment_type}_with_metadata.tsv",
+        / "viro3d_virus_matches_alignmenttype{alignment_type}_full.tsv",
+        tsv2=OUTPUT_DIRPATH
+        / "viral"
+        / "{host_organism}"
+        / "viro3d_virus_matches_alignmenttype{alignment_type}.tsv",
     conda:
         "envs/tidyverse.yml"
     shell:
@@ -360,7 +366,8 @@ rule combine_results_with_metadata_viral:
             --input_host_metadata {input.host_metadata_tsv} \
             --input_host_lddt {input.host_lddt_tsv} \
             --input_query_metadata {input.query_metadata_tsv} \
-            --output {output.tsv}
+            --output_full {output.tsv1} \
+            --output {output.tsv2} \
         """
 
 
@@ -386,7 +393,7 @@ rule all:
     input:
         #rules.combine_all_foldseek_results.output.csv,
         expand(
-            rules.combine_results_with_metadata_viral.output.tsv,
+            rules.combine_results_with_metadata_viral.output.tsv1,
             host_organism=HOST_ORGANISMS,
             alignment_type=ALIGNMENT_TYPE,
         ),
