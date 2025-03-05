@@ -128,7 +128,7 @@ rule decompress_viral_structures:
 
 rule download_viro3d_virus_structure_metadata:
     output:
-        tsv=INPUT_DIRPATH / "viral" / "{host_organism}" / "merged_viral_metadata_human.tsv",
+        tsv=INPUT_DIRPATH / "viral" / "merged_viral_metadata_human_{host_organism}.tsv",
     # TER TODO: add URL once it's public; metadata is now separated into different files
     # (emily's pipeline creates it by host), so this will probably be a url in the host org file
     # that we'll need to pull. It might make sense to change the name to have the host organism
@@ -377,6 +377,7 @@ rule combine_results_with_metadata_viral:
         host_metadata_tsv=rules.fetch_uniprot_metadata_per_host_proteome.output.tsv,
         host_lddt_tsv=rules.assess_pdbs_per_host_proteome.output.tsv,
         query_metadata_tsv=rules.download_viro3d_virus_structure_metadata.output.tsv,
+        query_uniprot_metadata_tsv=rules.fetch_uniprot_metadata_for_viral_structures.output.tsv,
     output:
         tsv1=OUTPUT_DIRPATH
         / "viral"
@@ -397,6 +398,7 @@ rule combine_results_with_metadata_viral:
             --input_host_metadata {input.host_metadata_tsv} \
             --input_host_lddt {input.host_lddt_tsv} \
             --input_query_metadata {input.query_metadata_tsv} \
+            --input_query_uniprot_metadata {input.query_uniprot_metadata_tsv} \
             --output_full {output.tsv1} \
             --output {output.tsv2} \
         """
@@ -429,4 +431,3 @@ rule all:
             alignment_type=ALIGNMENT_TYPE,
         ),
         rules.combine_human_metadata.output.csv2,
-        expand(rules.fetch_uniprot_metadata_for_viral_structures.output.tsv, host_organism=HOST_ORGANISMS),
