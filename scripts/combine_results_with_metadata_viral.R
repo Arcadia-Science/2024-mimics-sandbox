@@ -15,6 +15,8 @@ option_list <- list(
               help="Path to host structure quality measurement TSV file."),
   make_option(c("--input_query_metadata"), type="character",
               help="Path to query metadata TSV file."),
+  make_option(c("--output_full"), type="character",
+              help="Path to output TSV file with full metadata."),
   make_option(c("--output"), type="character",
               help="Path to output TSV file.")
 )
@@ -79,7 +81,13 @@ if(nrow(results) > 0){
     arrange(desc(alntmscore)) %>%
     distinct()
 
-  write_tsv(results, args$output)
+  write_tsv(results, args$output_full)
+  results_filtered <- results %>%
+    select(query_virus_name, query, target, qlen, tlen, alnlen, alntmscore, qtmscore,
+           ttmscore, host_gene_names_primary, host_function_cc, lddt, prob, qcov, 
+           tcov, pident, bits, evalue, qstart, qend, tstart, tend)
+  write_tsv(results_filtered, args$output)
 } else {
+  file.create(args$output_full)
   file.create(args$output)
 }

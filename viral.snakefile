@@ -322,6 +322,8 @@ rule combine_human_metadata:
 ## Do structural comparisons between viral proteins and host proteins
 #####################################################################
 
+ALIGNMENT_TYPE = ["1", "2"]  # 1: TMAlign, 2: 3di + AA
+
 
 rule compare_each_viral_pdb_against_all_host_pdbs:
     """
@@ -340,9 +342,14 @@ rule compare_each_viral_pdb_against_all_host_pdbs:
         protein_structures_dir=rules.download_host_pdbs.output.protein_structures_dir,
         pdbs=rules.decompress_viral_structures.output.dest_dir,
     output:
-        tsv=OUTPUT_DIRPATH / "viral" / "{host_organism}" / "viro3d_virus_matches.tsv",
+        tsv=OUTPUT_DIRPATH
+        / "viral"
+        / "{host_organism}"
+        / "tmp"
+        / "viro3d_virus_matches_alignmenttype{alignment_type}_tmp.tsv",
     conda:
         "envs/foldseek.yml"
+    threads: 31
     shell:
         """
         foldseek easy-search \
@@ -350,9 +357,16 @@ rule compare_each_viral_pdb_against_all_host_pdbs:
             {input.protein_structures_dir} \
             {output.tsv} \
             tmp_foldseek \
-            -e 0.01 \
+            -e inf \
+            --max-seqs 21000 \
+            --alignment-type {wildcards.alignment_type} \
+            --tmalign-fast 0 \
+            --exact-tmscore 1 \
+            --exhaustive-search 0 \
+            --tmscore-threshold 0.5 \
             --format-output query,target,qlen,tlen,alnlen,alntmscore,qtmscore,ttmscore,lddt,prob,qcov,tcov,pident,bits,evalue,qstart,qend,tstart,tend \
-            --format-mode 4
+            --format-mode 4 \
+            --threads {threads}
         """
 
 
@@ -364,11 +378,16 @@ rule combine_results_with_metadata_viral:
         host_lddt_tsv=rules.assess_pdbs_per_host_proteome.output.tsv,
         query_metadata_tsv=rules.download_viro3d_virus_structure_metadata.output.tsv,
     output:
-        tsv=OUTPUT_DIRPATH / "viral" / "{host_organism}" / "viro3d_virus_matches_with_metadata.tsv",
+        tsv1=OUTPUT_DIRPATH
+        / "viral"
+        / "{host_organism}"
+        / "viro3d_virus_matches_alignmenttype{alignment_type}_full.tsv",
+        tsv2=OUTPUT_DIRPATH
+        / "viral"
+        / "{host_organism}"
+        / "viro3d_virus_matches_alignmenttype{alignment_type}.tsv",
     conda:
         "envs/tidyverse.yml"
-    # TER TODO delete bit about query plddts in script
-    # otherwise adjust for viro3d and potentially gtalign
     shell:
         """
         Rscript scripts/combine_results_with_metadata_viral.R \
@@ -378,7 +397,8 @@ rule combine_results_with_metadata_viral:
             --input_host_metadata {input.host_metadata_tsv} \
             --input_host_lddt {input.host_lddt_tsv} \
             --input_query_metadata {input.query_metadata_tsv} \
-            --output {output.tsv}
+            --output_full {output.tsv1} \
+            --output {output.tsv2} \
         """
 
 
@@ -403,6 +423,10 @@ rule all:
     default_target: True
     input:
         #rules.combine_all_foldseek_results.output.csv,
-        expand(rules.combine_results_with_metadata_viral.output.tsv, host_organism=HOST_ORGANISMS),
+        expand(
+            rules.combine_results_with_metadata_viral.output.tsv1,
+            host_organism=HOST_ORGANISMS,
+            alignment_type=ALIGNMENT_TYPE,
+        ),
         rules.combine_human_metadata.output.csv2,
         expand(rules.fetch_uniprot_metadata_for_viral_structures.output.tsv, host_organism=HOST_ORGANISMS),
