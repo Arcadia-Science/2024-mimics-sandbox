@@ -138,17 +138,24 @@ rule download_viro3d_virus_structure_metadata:
         curl -JLo {output} #URL
         """
 
+
 rule extract_uniprot_identifiers_from_viral_metadata:
     """
     Extract the UniProt identifiers from the viral metadata table 
     """
-    input: tsv=rules.download_viro3d_virus_structure_metadata.output.tsv
-    output: txt=temp(OUTPUT_DIRPATH / "viral" / "{host_organism}" / "viral_protein_uniprot_identifiers.txt")
-    conda: "envs/csvtk.yml"
+    input:
+        tsv=rules.download_viro3d_virus_structure_metadata.output.tsv,
+    output:
+        txt=temp(
+            OUTPUT_DIRPATH / "viral" / "{host_organism}" / "viral_protein_uniprot_identifiers.txt"
+        ),
+    conda:
+        "envs/csvtk.yml"
     shell:
         """
         csvtk cut -f "UniProt ID" --tabs --out-tabs --delete-header {input.tsv} | csvtk uniq -f 1 --no-header-row --out-file {output.txt} 
         """
+
 
 rule fetch_uniprot_metadata_for_viral_structures:
     """
