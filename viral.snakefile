@@ -128,7 +128,7 @@ rule decompress_viral_structures:
 
 rule download_viro3d_virus_structure_metadata:
     output:
-        tsv=INPUT_DIRPATH / "viral" / "{host_organism}" / "merged_viral_metadata.tsv",
+        tsv=INPUT_DIRPATH / "viral" / "{host_organism}" / "merged_viral_metadata_human.tsv",
     # TER TODO: add URL once it's public; metadata is now separated into different files
     # (emily's pipeline creates it by host), so this will probably be a url in the host org file
     # that we'll need to pull. It might make sense to change the name to have the host organism
@@ -136,6 +136,37 @@ rule download_viro3d_virus_structure_metadata:
     shell:
         """
         curl -JLo {output} #URL
+        """
+
+rule extract_uniprot_identifiers_from_viral_metadata:
+    """
+    Extract the UniProt identifiers from the viral metadata table 
+    """
+    input: tsv=rules.download_viro3d_virus_structure_metadata.output.tsv
+    output: txt=temp(OUTPUT_DIRPATH / "viral" / "{host_organism}" / "viral_protein_uniprot_identifiers.txt")
+    conda: "envs/csvtk.yml"
+    shell:
+        """
+        csvtk cut -f "UniProt ID" --tabs --out-tabs --delete-header {input.tsv} | csvtk uniq -f 1 --no-header-row --out-file {output.txt} 
+        """
+
+rule fetch_uniprot_metadata_for_viral_structures:
+    """
+    Query UniProt using viral protein IDs and download specified metadata as a TSV.
+    """
+    input:
+        py=rules.download_proteincartography_scripts.output.txt,
+        txt=rules.extract_uniprot_identifiers_from_viral_metadata.output.txt,
+    output:
+        tsv=OUTPUT_DIRPATH / "viral" / "{host_organism}" / "viral_protein_features.tsv",
+    conda:
+        "envs/web_apis.yml"
+    shell:
+        """
+        python ProteinCartography/fetch_uniprot_metadata.py \
+            --input {input.txt} \
+            --output {output.tsv} \
+            --additional-fields {UNIPROT_ADDITIONAL_FIELDS} 
         """
 
 
@@ -374,3 +405,4 @@ rule all:
         #rules.combine_all_foldseek_results.output.csv,
         expand(rules.combine_results_with_metadata_viral.output.tsv, host_organism=HOST_ORGANISMS),
         rules.combine_human_metadata.output.csv2,
+        expand(rules.fetch_uniprot_metadata_for_viral_structures.output.tsv, host_organism=HOST_ORGANISMS),
