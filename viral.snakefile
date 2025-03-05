@@ -128,7 +128,7 @@ rule decompress_viral_structures:
 
 rule download_viro3d_virus_structure_metadata:
     output:
-        tsv=INPUT_DIRPATH / "viral" / "merged_viral_metadata_human_{host_organism}.tsv",
+        tsv=INPUT_DIRPATH / "viral" / "merged_viral_metadata_{host_organism}.tsv",
     # TER TODO: add URL once it's public; metadata is now separated into different files
     # (emily's pipeline creates it by host), so this will probably be a url in the host org file
     # that we'll need to pull. It might make sense to change the name to have the host organism
