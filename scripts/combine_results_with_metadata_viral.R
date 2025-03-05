@@ -15,6 +15,8 @@ option_list <- list(
               help="Path to host structure quality measurement TSV file."),
   make_option(c("--input_query_metadata"), type="character",
               help="Path to query metadata TSV file."),
+  make_option(c("--input_query_uniprot_metadata"), type="character",
+              help="Path to query metadata TSV file."),
   make_option(c("--output_full"), type="character",
               help="Path to output TSV file with full metadata."),
   make_option(c("--output"), type="character",
@@ -40,15 +42,21 @@ if(nrow(results) > 0){
     select(protid, pdb_plddt = pdb_confidence) %>%
     distinct()
 
-  query_metadata <- read_tsv(args$input_query_metadata, show_col_types = FALSE) %>%
+    query_uniprot_metadata <- read_tsv(args$input_query_uniprot_metadata, show_col_types = FALSE) %>%
     clean_names() %>%
+    select(-protid) %>%
+    distinct() %>%
+    group_by(entry) %>%
+    slice_head(n = 1)
+  
+    query_metadata <- read_tsv(args$input_query_metadata, show_col_types = FALSE) %>%
+    clean_names() %>%
+    rename(uniprot_id = uni_prot_id) %>%
+    left_join(query_uniprot_metadata, by = c("uniprot_id" = "entry"), relationship = "many-to-one") %>%
     # names might not match, so edit to original file names
     mutate(protid = str_remove(string = structure_file, pattern = "\\.pdb$")) %>%
     rename_with(.cols = everything(), function(x){paste0("query_", x)}) %>%
     distinct()
-  
-  query_uniprot_metadata <- read_tsv(args$input_query_uniprot_metadata, show_col_types = FALSE) %>%
-    clean_names() 
 
 # We have more metadata for human (UniProt, Protein Atlas, OpenTargets) than we
 # do for other species (UniProt). Treat this differently but try to end up with
