@@ -27,8 +27,6 @@ results <- read_tsv(args$input_results, show_col_types = FALSE)
 
 if(nrow(results) > 0){
   results <- results %>%
-    mutate(query = str_remove(string = query, pattern = "\\.pdb"),
-           target = str_remove(string = target, pattern = "\\.pdb")) %>%
     # Calculate the alntmscore (alignment TM-score). 
     # Foldseek outputs the incorrect alntmscore in some fraction of results, and
     # gtalign does not output the alntmscore
@@ -48,6 +46,9 @@ if(nrow(results) > 0){
     mutate(protid = str_remove(string = structure_file, pattern = "\\.pdb$")) %>%
     rename_with(.cols = everything(), function(x){paste0("query_", x)}) %>%
     distinct()
+  
+  query_uniprot_metadata <- read_tsv(args$input_query_uniprot_metadata, show_col_types = FALSE) %>%
+    clean_names() 
 
 # We have more metadata for human (UniProt, Protein Atlas, OpenTargets) than we
 # do for other species (UniProt). Treat this differently but try to end up with
