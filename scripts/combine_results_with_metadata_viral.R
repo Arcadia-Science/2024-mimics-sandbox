@@ -93,7 +93,7 @@ if(nrow(results) > 0){
   write_tsv(results, args$output_full)
   results_filtered <- results %>%
     select(query_virus_name, query, target, qlen, tlen, alnlen, alntmscore, qtmscore,
-           ttmscore, host_gene_names_primary, host_function_cc, lddt, prob, qcov, 
+           ttmscore, host_gene_names_primary, host_protein_names, lddt, prob, qcov, 
            tcov, pident, bits, evalue, qstart, qend, tstart, tend)
   write_tsv(results_filtered, args$output)
 } else {
