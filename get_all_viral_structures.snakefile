@@ -129,7 +129,9 @@ rule download_all_pdbs:
     input:
         metadata_dir=rules.fetch_viro3d_structures_metadata.output.metadata_dir,
     output:
-        pdb_dir=directory(OUTPUT_DIRPATH / "viral" / "{host_organism}" / "viro3d_{host_organism}_pdbs"),
+        pdb_dir=directory(
+            OUTPUT_DIRPATH / "viral" / "{host_organism}" / "viro3d_{host_organism}_pdbs"
+        ),
         summary=OUTPUT_DIRPATH / "metadata" / "downloadedviro3d_{host_organism}_pdbs.txt",
         fails=OUTPUT_DIRPATH / "metadata" / "downloadedviro3d_{host_organism}_pdbs_fails.txt",
     shell:
@@ -149,7 +151,9 @@ rule download_fails:
         fails=rules.download_all_pdbs.output.fails,
         metadata_dir=OUTPUT_DIRPATH / "metadata" / "viro3d_{host_organism}_metadata",
     output:
-        new_summary=OUTPUT_DIRPATH / "metadata" / "downloadedviro3d_{host_organism}_pdbs_withfails.txt",
+        new_summary=OUTPUT_DIRPATH
+        / "metadata"
+        / "downloadedviro3d_{host_organism}_pdbs_withfails.txt",
     shell:
         """
         python scripts/download_fails.py {input.pdb_dir} {input.summary} {input.metadata_dir} {input.fails} {output.new_summary}
@@ -163,7 +167,9 @@ rule add_structure_file_column:
     input:
         new_summary=rules.download_fails.output.new_summary,
     output:
-        updated_summary=OUTPUT_DIRPATH / "metadata" / "downloadedviro3d_{host_organism}_pdbs_updated.txt",
+        updated_summary=OUTPUT_DIRPATH
+        / "metadata"
+        / "downloadedviro3d_{host_organism}_pdbs_updated.txt",
     shell:
         """
         python scripts/add_structure_file.py {input.new_summary} {output.updated_summary}
@@ -194,7 +200,7 @@ rule check_downloads:
     """
     input:
         pdb_dir=rules.download_all_pdbs.output.pdb_dir,
-        merged_metadata=rules.merge_metadata.output.merged_metadata
+        merged_metadata=rules.merge_metadata.output.merged_metadata,
     output:
         done="logs/{host_organism}_compare_counts_done.txt",
     shell:
