@@ -17,11 +17,6 @@ host_metadata = pd.read_csv("inputs/viral/host-information.csv", header=0).set_i
 HOST_ORGANISMS = host_metadata["organism"].unique().tolist()
 
 
-rule all:
-    input:
-        expand(rules.check_downloads.output.done, host_organism=HOST_ORGANISMS),
-
-
 rule download_kegg_virushostdb:
     """
     Downloaded 2024-12-09 version
@@ -208,3 +203,9 @@ rule check_downloads:
         python scripts/check_download_number.py {input.merged_metadata} {input.pdb_dir}
         touch {output.done}
         """
+
+
+rule all:
+    default_target: True
+    input:
+        expand(rules.check_downloads.output.done, host_organism=HOST_ORGANISMS),
