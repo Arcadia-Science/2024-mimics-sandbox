@@ -119,7 +119,7 @@ rule decompress_viral_structures:
         zipf=rules.download_viro3d_virus_structures_that_infect_a_host.output.zipf,
     output:
         # TER TODO dest dir may change, test this out and adjust
-        dest_dir=directory(OUTPUT_DIRPATH / "viral" / "{host_organism}" / "viral_structures"),
+        dest_dir=directory(OUTPUT_DIRPATH / "viral" / "{host_organism}" / "viro3d_{host_organism}_pdbs"),
     shell:
         """
         unzip {input.zipf} -d {output.dest_dir}
