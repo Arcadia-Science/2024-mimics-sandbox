@@ -23,9 +23,9 @@ args <- parse_args(OptionParser(option_list=option_list))
 # Define sets of key words for protein location ---------------------------
 # Also create a regular expression pattern that includes all words
 extracellular_keywords <- c('extracellular', 'secreted', 'cell surface',
-                           'pericellular', 'secretory vesicle membrane',
-                           'cytoplasmic vesicle, secretory vesicle membrane',
-                           'synaptic vesicle membrane')
+                            'pericellular', 'secretory vesicle membrane',
+                            'cytoplasmic vesicle, secretory vesicle membrane',
+                            'synaptic vesicle membrane')
 extracellular_pattern <- paste(extracellular_keywords, collapse = "|")
 
 molecular_function_keywords <- c("receptor", "extracellular", "secreted",
@@ -70,7 +70,9 @@ protein_atlas <- read_tsv(args$input_protein_atlas) %>%
   clean_names() %>%
   rename_with(~ paste0("proteinatlas_", .), everything()) %>%
   rename(uniprot = proteinatlas_uniprot, ensembl = proteinatlas_ensembl) %>%
-  relocate(uniprot, ensembl, .before = proteinatlas_gene)
+  relocate(uniprot, ensembl, .before = proteinatlas_gene) %>%
+  # remove columns that don't add much information and are abundant
+  select(-starts_with("proteinatlas_cancer_prognostics"))
 
 mouse_phenotypes <- read_csv(args$input_mouse_opentargets) %>%
   rename(opentargets_mouse_phenotype = mouse_phenotype)
@@ -98,7 +100,8 @@ metadata <- metadata %>%
         str_detect(uniprot_subcellular_location_cc, extracellular_pattern) |
           str_detect(proteinatlas_secretome_location, 'secreted') |
           str_detect(proteinatlas_molecular_function, molecular_function_pattern) |
-          str_detect(uniprot_signal_peptide,  "SIGNAL"),
+          str_detect(uniprot_signal_peptide,  "SIGNAL") |
+          str_detect(uniprot_topological_domain, "Extracellular"),
         'extracellular', 'not extracellular')
   ) %>%
   mutate(any_extracellular_location = ifelse(is.na(any_extracellular_location), "not extracellular", any_extracellular_location))
